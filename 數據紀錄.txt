@@ -1,0 +1,129 @@
+
+
+
+
+出版篩出的 50% data訓練出的模型 在100 % imagenette中acc 98.5%
+
+隨機選出的 50% data訓練出的模型 在100 % imagenette中acc 98.5%
+
+cifar first 5 percent在second 5 percent的準確率 74%
+
+cifar first 5 percent在test data的準確率 74.3%
+
+cifar first 5 percent在all data的準確率 75.5%
+
+
+cifar 10 percent在test data的準確率 80%
+
+cifar 10 percent在all data的準確率 82%
+
+
+經初版分類模型改完confidence後在test data的準確率 78%
+
+經初版分類模型改完confidence後在all data的準確率 80%
+
+
+初版挑出的50% data(未資料增強) 在test data的準確率 90%
+
+初版挑出的50% data(未資料增強) 在all data的準確率 93.7%
+
+
+all data(未資料增強)在test data的準確率 92%
+
+all data(未資料增強)在all data的準確率 96%
+
+
+隨機挑50% data(未資料增強) 在test data的準確率 89%
+
+隨機挑50% data(未資料增強) 在all data的準確率 91.7%
+
+
+
+初版挑出的40% data(未資料增強) 在test data的準確率 89.5%
+
+初版挑出的40% data(未資料增強) 在all data的準確率 92.3%
+
+
+初版挑出的30% data(未資料增強) 在test data的準確率 88%
+
+初版挑出的30% data(未資料增強) 在all data的準確率 91%
+
+----------------------------第二版--------------------------
+
+FCN準確率  train set 80幾  validation 60幾到70
+
+經第二版分類模型改完confidence後在all data的準確率 80.61%
+
+
+經第二版分類模型(只修改confidence最高的兩名)改完confidence後在all data的準確率 80.85%
+
+經第二版分類模型(只修改confidence最高的一名)改完confidence後在all data的準確率 82.13%
+
+經第二版分類模型(只修改confidence最高的三名)改完confidence後在all data的準確率 80.77%
+
+經第二版做pre weight(只修改confidence最高的一名)改完confidence後在all data的準確率 82.1%
+
+以distance重新製作feature(只修改confidence最高的一名)改完confidence後在all data的準確率 82.1%
+
+
+第二版(改前兩大)挑出的50% data(未資料增強) 在test data的準確率 90.7%
+
+第二版(改前兩大)挑出的50% data(未資料增強) 在all data的準確率 94.2%
+
+
+ 第二版(改MAX)挑出的50% data(未資料增強) 在test data的準確率 90.6%
+
+第二版(改MAX)挑出的50% data(未資料增強) 在all data的準確率 94.1%
+
+
+第二版(改前三大且資料平均)挑出的50% data(未資料增強) 在test data的準確率 90.4%
+
+第二版(改前三大且資料平均)挑出的50% data(未資料增強) 在all data的準確率 94%
+
+
+-----------------------CIFAR100---------------------------------------------
+
+以10% datat訓練出的model在test set的acc  55%
+
+first 5% data訓練出的model在test set的acc  39%
+
+以10% datat訓練出的model( 修改前五大後 )在test set的acc  58.8%
+
+以10% datat訓練出的model( 修改前10大後 )在test set的acc  55.8%
+
+以10% datat訓練出的model( 修改前三大後 )在test set的acc  56.8%
+
+以10% datat訓練出的model( 修改前五大，只改模型表現好的 )在test set的acc  62.1%
+
+
+以模型挑出的50% data在test set中的acc 81.38%
+
+不經線性模型修改挑出50%data在test set中的acc 81.57
+
+以模型(只使用acc高的模型)挑出的50% data在test set中的acc 81.04%
+
+
+隨機挑出的50% data在test set中的acc 81.64%
+
+復現原版active learning挑出50% data在test set中的acc 81.99%
+
+以模型挑出的50% data(各類數量不平均)在test set中的acc 80.75%
+
+以100%模型得出的confidence算entropy挑50% data在test set中的acc 80.87%
+
+
+100% data在test set中的acc 85.30%
+
+
+
+原版中分類模型acc超過70的model  43個
+
+加入confidence caliration後acc超過70的model  36個
+
+加入confidence caliration且只改最大的confidence後acc超過70的model  31個
+
+加入confidence caliration且只改前10大的confidence後acc超過70的model  34個
+
+動態調整每個模型的動量後acc超過70的model   個
+
+動態調整每個模型的leaening rate後acc超過70的model   44個
