@@ -1,5 +1,17 @@
-#efficientionnet訓練模型
+#main_model training
+
 import function
+from torchvision import datasets,transforms
+import torch
+import torch.optim as optim
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from efficientnet_pytorch import EfficientNet
+from tqdm import tqdm, trange
+import time
+import os  
+
+device="cuda" if torch.cuda.is_available() else "cpu" 
 
 class Efficientnet_train():
     def __init__(self,opt):
@@ -13,13 +25,13 @@ class Efficientnet_train():
         self.save_model_name=opt.save_model_name #保存模型檔名
         self.lr=opt.lr #初始化學習率
         self.moment=opt.m #動量
-        base_model = EfficientNet.from_name('efficientnet-b5') #加載模型，使用b幾的就改為b幾
+        self.version = opt.model_name
+        base_model = EfficientNet.from_name(self.version) #加載模型，使用b幾的就改為b幾
         state_dict = torch.load(self.weights)
         base_model.load_state_dict(state_dict)
         # 修改全連接層
         num_ftrs = base_model._fc.in_features
         base_model._fc = nn.Linear(num_ftrs, self.class_num)
-        print(device)
         self.model = base_model.to(device)
         # 交叉熵損失函數
         self.cross = nn.CrossEntropyLoss()
