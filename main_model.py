@@ -73,7 +73,6 @@ class Efficientnet_train():
                 #每隔100個batch顯示一次信息，這裡顯示的ACC是當前預測正確的個數/當前訓練過的個數
                 if (i+1)%100==0:
                     print('[Epoch:{}__iter:{}/{}] | Acc:{}'.format(ech + 1,i+1,len(self.trainx), run_correct/count))
-            # print(run_correct,'------------',count)
             train_acc = run_correct / count
             # 每次訓完一批顯示一次信息
             print('Epoch:{} | Loss:{} | Acc:{}'.format(ech + 1, run_loss / len(self.trainx), train_acc))

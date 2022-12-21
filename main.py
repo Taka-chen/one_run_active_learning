@@ -40,18 +40,20 @@ img_dir = ''
 save_dir = ''
 train_val_num = 0.1
 function.split_dataset(img_dir,save_dir,train_val_num,name1='10_percent',name2='90_percent') #切分出10%資料
+percent90_dir = os.path.join(save_dir,'90_percent')
 
 percent10_dir = os.path.join(save_dir,'10_percent') 
 train_val_num = 0.8
 function.split_dataset(percent10_dir,percent10_dir+'_split',train_val_num,name1='train',name2='val') #將5%資料切分出訓練集和測試集
 train_val_num = 0.5
 function.split_dataset(percent10_dir,save_dir,train_val_num,name1='first5_percent',name2='second5_percent') #將10%資料切成兩個5%資料
-
+second5_dir = os.path.join(save_dir,'second5_percent')
 first5_dir = os.path.join(save_dir,'first5_percent')
 train_val_num = 0.8
 function.split_dataset(first5_dir,first5_dir+'_split',train_val_num,name1='train',name2='val') #將5%資料切分出訓練集和測試集
 train_path = (first5_dir+'_split')
 
+#train 5% data
 #main_model参數設置
 save_model_path = './weight'
 first5_model_name = 'efficientb5_first5.pth'
@@ -76,6 +78,7 @@ if __name__ == '__main__':
     models=main_model.Efficientnet_train(opt)
     models()
 
+#train 10% data
 #main_model参數設置
 train_path = (percent10_dir+'_split')
 pretrain_weight_path = os.path.join(save_model_path,first5_model_name)
@@ -101,3 +104,62 @@ if __name__ == '__main__':
     models=main_model.Efficientnet_train(opt)
     models()
 
+#產出unlabel set在5% model的confidence
+#以train好的模型產出對data的confidence
+input_size = 224
+class_num = 100
+means = [0.485, 0.456, 0.406]
+stds = [0.229, 0.224, 0.225]
+unorm = function.UnNormalize(mean = means, std = stds)
+device="cuda" if torch.cuda.is_available() else "cpu" 
+if __name__ == '__main__':
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    #產出unlabel set在5% model的confidence
+    net_name = 'efficientnet-b5'
+    data_dir = second5_dir
+    weight_dir = './weight'
+    modelft_file = os.path.join(weight_dir,first5_model_name)
+    batch_size = 1
+    # GPU時
+    model = efficientnet_pytorch.EfficientNet.from_name(net_name)
+    # 修改全連接層
+    num_ftrs = model._fc.in_features
+    model._fc = nn.Linear(num_ftrs, class_num)
+    model = model.to(device)
+    #load model
+    model.load_state_dict(torch.load(modelft_file))
+    criterion = nn.CrossEntropyLoss().cuda()
+    tensor, class_num, path = function.test_model(model ,data_dir,batch_size,set_name = '')
+    pickle_dir = './pickle'
+    os.makedirs(pickle_dir,exist_ok=True)
+    first5_confidence_pickle_dir = os.path.join(pickle_dir,'first5_confidence.pickle')
+    first5_classnum_pickle_dir = os.path.join(pickle_dir,'first5_classnum.pickle')
+    first5_path_pickle_dir = os.path.join(pickle_dir,'first5_path.pickle')
+    with open(first5_confidence_pickle_dir , 'wb') as f:
+        pickle.dump(tensor, f)
+    with open(first5_classnum_pickle_dir, 'wb') as f:
+        pickle.dump(class_num, f)
+    with open(first5_path_pickle_dir, 'wb') as f:
+        pickle.dump(path, f)
+    #產出unlabel set在10% model的confidence
+    modelft_file = os.path.join(weight_dir,percent10_model_name)
+    model = efficientnet_pytorch.EfficientNet.from_name(net_name)
+    # 修改全連接層
+    num_ftrs = model._fc.in_features
+    model._fc = nn.Linear(num_ftrs, class_num)
+    model = model.to(device)
+    #load model
+    model.load_state_dict(torch.load(modelft_file))
+    criterion = nn.CrossEntropyLoss().cuda()
+    tensor, class_num, path = function.test_model(model ,data_dir,batch_size,set_name = '')
+    pickle_dir = './pickle'
+    os.makedirs(pickle_dir,exist_ok=True)
+    percent10_confidence_pickle_dir = os.path.join(pickle_dir,'percent10_confidence.pickle')
+    percent10_classnum_pickle_dir = os.path.join(pickle_dir,'percent10_classnum.pickle')
+    percent10_path_pickle_dir = os.path.join(pickle_dir,'percent10_path.pickle')
+    with open(percent10_confidence_pickle_dir , 'wb') as f:
+        pickle.dump(tensor, f)
+    with open(percent10_classnum_pickle_dir, 'wb') as f:
+        pickle.dump(class_num, f)
+    with open(percent10_path_pickle_dir, 'wb') as f:
+        pickle.dump(path, f)
