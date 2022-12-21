@@ -41,7 +41,6 @@ save_dir = ''
 train_val_num = 0.1
 function.split_dataset(img_dir,save_dir,train_val_num,name1='10_percent',name2='90_percent') #切分出10%資料
 percent90_dir = os.path.join(save_dir,'90_percent')
-
 percent10_dir = os.path.join(save_dir,'10_percent') 
 train_val_num = 0.8
 function.split_dataset(percent10_dir,percent10_dir+'_split',train_val_num,name1='train',name2='val') #將5%資料切分出訓練集和測試集
@@ -52,6 +51,7 @@ first5_dir = os.path.join(save_dir,'first5_percent')
 train_val_num = 0.8
 function.split_dataset(first5_dir,first5_dir+'_split',train_val_num,name1='train',name2='val') #將5%資料切分出訓練集和測試集
 train_path = (first5_dir+'_split')
+function.split_dataset(second5_dir,second5_dir+'_split',train_val_num,name1='train',name2='val') #將5%資料切分出訓練集和測試集
 
 #train 5% data
 #main_model参數設置
@@ -116,7 +116,7 @@ if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     #產出unlabel set在5% model的confidence
     net_name = 'efficientnet-b5'
-    data_dir = second5_dir
+    data_dir = second5_dir+'_split'
     weight_dir = './weight'
     modelft_file = os.path.join(weight_dir,first5_model_name)
     batch_size = 1
@@ -129,37 +129,50 @@ if __name__ == '__main__':
     #load model
     model.load_state_dict(torch.load(modelft_file))
     criterion = nn.CrossEntropyLoss().cuda()
-    tensor, class_num, path = function.test_model(model ,data_dir,batch_size,set_name = '')
-    pickle_dir = './pickle'
-    os.makedirs(pickle_dir,exist_ok=True)
-    first5_confidence_pickle_dir = os.path.join(pickle_dir,'first5_confidence.pickle')
-    first5_classnum_pickle_dir = os.path.join(pickle_dir,'first5_classnum.pickle')
-    first5_path_pickle_dir = os.path.join(pickle_dir,'first5_path.pickle')
-    with open(first5_confidence_pickle_dir , 'wb') as f:
-        pickle.dump(tensor, f)
-    with open(first5_classnum_pickle_dir, 'wb') as f:
-        pickle.dump(class_num, f)
-    with open(first5_path_pickle_dir, 'wb') as f:
-        pickle.dump(path, f)
-    #產出unlabel set在10% model的confidence
-    modelft_file = os.path.join(weight_dir,percent10_model_name)
-    model = efficientnet_pytorch.EfficientNet.from_name(net_name)
-    # 修改全連接層
-    num_ftrs = model._fc.in_features
-    model._fc = nn.Linear(num_ftrs, class_num)
-    model = model.to(device)
-    #load model
-    model.load_state_dict(torch.load(modelft_file))
-    criterion = nn.CrossEntropyLoss().cuda()
-    tensor, class_num, path = function.test_model(model ,data_dir,batch_size,set_name = '')
-    pickle_dir = './pickle'
-    os.makedirs(pickle_dir,exist_ok=True)
-    percent10_confidence_pickle_dir = os.path.join(pickle_dir,'percent10_confidence.pickle')
-    percent10_classnum_pickle_dir = os.path.join(pickle_dir,'percent10_classnum.pickle')
-    percent10_path_pickle_dir = os.path.join(pickle_dir,'percent10_path.pickle')
-    with open(percent10_confidence_pickle_dir , 'wb') as f:
-        pickle.dump(tensor, f)
-    with open(percent10_classnum_pickle_dir, 'wb') as f:
-        pickle.dump(class_num, f)
-    with open(percent10_path_pickle_dir, 'wb') as f:
-        pickle.dump(path, f)
+    set_list = os.listdir(data_dir)
+    for name in set_list:
+        tensor, class_num, path = function.test_model(model ,data_dir,batch_size,set_name = name)
+        pickle_dir = './pickle'
+        os.makedirs(pickle_dir,exist_ok=True)
+        first5_confidence_pickle_dir = os.path.join(pickle_dir,name+'_first5_confidence.pickle')
+        first5_classnum_pickle_dir = os.path.join(pickle_dir,name+'_first5_classnum.pickle')
+        first5_path_pickle_dir = os.path.join(pickle_dir,name+'_first5_path.pickle')
+        with open(first5_confidence_pickle_dir , 'wb') as f:
+            pickle.dump(tensor, f)
+        with open(first5_classnum_pickle_dir, 'wb') as f:
+            pickle.dump(class_num, f)
+        with open(first5_path_pickle_dir, 'wb') as f:
+            pickle.dump(path, f)
+        #產出unlabel set在10% model的confidence
+        modelft_file = os.path.join(weight_dir,percent10_model_name)
+        model = efficientnet_pytorch.EfficientNet.from_name(net_name)
+        # 修改全連接層
+        num_ftrs = model._fc.in_features
+        model._fc = nn.Linear(num_ftrs, class_num)
+        model = model.to(device)
+        #load model
+        model.load_state_dict(torch.load(modelft_file))
+        criterion = nn.CrossEntropyLoss().cuda()
+        tensor, class_num, path = function.test_model(model ,data_dir,batch_size,set_name = '')
+        pickle_dir = './pickle'
+        os.makedirs(pickle_dir,exist_ok=True)
+        percent10_confidence_pickle_dir = os.path.join(pickle_dir,name+'_percent10_confidence.pickle')
+        percent10_classnum_pickle_dir = os.path.join(pickle_dir,name+'_percent10_classnum.pickle')
+        percent10_path_pickle_dir = os.path.join(pickle_dir,name+'_percent10_path.pickle')
+        with open(percent10_confidence_pickle_dir , 'wb') as f:
+            pickle.dump(tensor, f)
+        with open(percent10_classnum_pickle_dir, 'wb') as f:
+            pickle.dump(class_num, f)
+        with open(percent10_path_pickle_dir, 'wb') as f:
+            pickle.dump(path, f)
+
+#製作min model要用的label和資料集( 只取最大的x個值 )
+#label類別 0:上升 1:不變 2:下降
+with open(os.path.join(pickle_dir,'train_first5_confidence.pickle'), 'rb') as f:
+    train_data = pickle.load(f)
+with open(os.path.join(pickle_dir,'train_percent10_confidence.pickle'), 'rb') as f:
+    train_label = pickle.load(f)
+with open(os.path.join(pickle_dir,'val_first5_confidence.pickle'), 'rb') as f:
+    val_data = pickle.load(f)
+with open(os.path.join(pickle_dir,'val_percent10_confidence.pickle'), 'rb') as f:
+    val_label = pickle.load(f)
