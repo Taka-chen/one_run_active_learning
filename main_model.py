@@ -10,6 +10,9 @@ from efficientnet_pytorch import EfficientNet
 from tqdm import tqdm, trange
 import time
 import os  
+import torch.nn.functional as FUN
+from torch.autograd import Variable
+import torchvision.transforms as T
 
 device="cuda" if torch.cuda.is_available() else "cpu" 
 
@@ -128,7 +131,6 @@ class Efficientnet_train():
         b = image_datasets["train"].class_to_idx  # id和類别對
         return trainx,valx,b
 
-
     # 動態調整學習率
     def lrfn(self,num_epoch, optimzer):
         lr_start = 0.00001  # 初始值
@@ -145,3 +147,105 @@ class Efficientnet_train():
         for param_group in optimzer.param_groups:
             param_group['lr'] = lr
         return optimzer
+
+
+tensor = []
+label = []
+class_num = []
+path = []
+input_size = 224
+#把要進行test的data反向正規化成原圖
+class UnNormalize(object):
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, tensor):
+        """
+        Args:
+            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
+        Returns:
+            Tensor: Normalized image.
+        """
+        for t, m, s in zip(tensor, self.mean, self.std):
+            t.mul_(s).add_(m)
+            # The normalize code -> t.sub_(m).div_(s)
+        return tensor
+
+means = [0.485, 0.456, 0.406]
+stds = [0.229, 0.224, 0.225]
+unorm = UnNormalize(mean = means, std = stds)
+
+#載入測試集
+class ImageFolderWithPaths(datasets.ImageFolder):
+    def __init__(self, *args):
+        super(ImageFolderWithPaths, self).__init__(*args)
+        self.trans = args[1]
+    def __len__(self):
+      return len(self.imgs)
+    def __getitem__(self, index):
+        img, label = super(ImageFolderWithPaths, self).__getitem__(index)
+        
+        path = self.imgs[index][0]
+        return (img, label ,path)
+
+# Load Test images
+def loaddata(data_dir, batch_size, set_name, shuffle):
+    data_transforms = {
+        'train': transforms.Compose([
+            transforms.Resize(input_size),
+            transforms.CenterCrop(input_size),
+            transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(means, stds)
+        ]),
+        'val': transforms.Compose([
+            transforms.Resize(input_size),
+            transforms.CenterCrop(input_size),
+            transforms.ToTensor(),
+            transforms.Normalize(means, stds)
+        ]),
+    }
+    image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x), data_transforms[x]) for x in [set_name]}
+    # num_workers=0 if CPU else = 1
+    dataset_loaders = {x: torch.utils.data.DataLoader(image_datasets[x],
+                                                      batch_size=batch_size,
+                                                      shuffle=shuffle, num_workers=0) for x in [set_name]}
+    data_set_sizes = len(image_datasets[set_name])
+    return dataset_loaders, data_set_sizes
+
+#對unlabelset做test產出pickle檔
+def test_model(model, criterion , batch_size, data_dir):
+    model.eval()
+    running_loss = 0.0
+    running_corrects = 0
+    cont = 0
+    outPre = []
+    initi_tensor = []
+    outLabel = []
+    img_path = []
+    dset_loaders, dset_sizes = loaddata(data_dir=data_dir, batch_size=batch_size, set_name='val', shuffle=False)
+    transform = T.ToPILImage()
+    for data in dset_loaders['val']:
+        inputs, labels, paths = data #path抓出被分類的圖片的原始路徑
+        labels = labels.type(torch.LongTensor)
+        # GPU
+        inputs, labels = Variable(inputs.cuda()), Variable(labels.cuda())
+        outputs = model(inputs)
+        tensor.append(outputs.data)
+        _, preds = torch.max(outputs.data, 1)
+        class_num.append(labels)
+        path.append(paths)
+        loss = criterion(outputs, labels)
+        if cont == 0:
+            outPre = outputs.data.cpu()
+            outLabel = labels.data.cpu()
+        else:
+            outPre = torch.cat((outPre, outputs.data.cpu()), 0)
+            outLabel = torch.cat((outLabel, labels.data.cpu()), 0)
+
+        running_loss += loss.item() * inputs.size(0)
+        running_corrects += torch.sum(preds == labels.data)
+        cont += len(labels)
+    return FUN.softmax(Variable(outPre)).data.numpy(), outLabel.numpy(), tensor, class_num, path
