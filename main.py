@@ -117,7 +117,7 @@ if __name__ == '__main__':
 input_size = 224
 means = [0.485, 0.456, 0.406]
 stds = [0.229, 0.224, 0.225]
-unorm = function.UnNormalize(mean = means, std = stds)
+unorm = main_model.UnNormalize(mean = means, std = stds)
 device="cuda" if torch.cuda.is_available() else "cpu" 
 if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -160,7 +160,7 @@ if __name__ == '__main__':
         #load model
         model.load_state_dict(torch.load(modelft_file))
         criterion = nn.CrossEntropyLoss().cuda()
-        tensor, class_num, path = function.test_model(model ,data_dir,batch_size,set_name = '')
+        tensor, class_num, path = main_model.test_model(model ,data_dir,batch_size,set_name = '')
         os.makedirs(pickle_dir,exist_ok=True)
         percent10_confidence_pickle_dir = os.path.join(pickle_dir,name+'_percent10_confidence.pickle')
         percent10_classnum_pickle_dir = os.path.join(pickle_dir,name+'_percent10_classnum.pickle')
@@ -183,10 +183,7 @@ with open(os.path.join(pickle_dir,'val_first5_confidence.pickle'), 'rb') as f:
 with open(os.path.join(pickle_dir,'val_percent10_confidence.pickle'), 'rb') as f:
     val_label = pickle.load(f)
 for class_ in range(class_num):
-    t_label = []
-    t_data = []
-    v_label = []
-    v_data = []
+    t_label,t_data,v_label,v_data  = [ []for x in range(4)]
     save_pickle_dir = os.path.join(pickle_dir,'min_model',str(class_))
     os.makedirs(save_pickle_dir, exist_ok=True)
     for t in range(len(train_data)):
@@ -216,9 +213,7 @@ for class_ in range(class_num):
         pickle.dump(label, f)
     for t in range(len(val_data)):
         value , index = torch.sort(val_data[t].squeeze(),descending = True)
-        # for t2 in range(int(len(index)/33)):
         for t2 in range(int(len(index)/20)):
-
             if int(index[t2]) == class_:
                 v_data.append(val_data[t])
                 differ = val_label[t][0][class_] - val_data[t][0][class_]
@@ -241,3 +236,171 @@ for class_ in range(class_num):
         pickle.dump(data2, f)
     with open(os.path.join(save_pickle_dir,'class'+str(class_)+'_val_label.pickle'), 'wb') as f:
         pickle.dump(label2, f)
+
+#定義min model分類模型
+device="cuda" if torch.cuda.is_available() else "cpu"
+MyResModel = main_model.LSTM_FCN(input_dim=1, hidden_dim=32, output_dim=3, layers=1).to(device)
+MyResModel.init_model()
+criterion = torch.nn.CrossEntropyLoss()
+optimizer = torch.optim.SGD(MyResModel.parameters(), lr=0.001, momentum=0.8)
+
+#train min model分類模型
+#參數設定
+Epochs=800
+max_test_acc=0.0
+batch_size = 32
+good_model_list = []
+device = 'cuda'
+save_min_model_dir = 'min_model_weight'
+os.makedirs(save_min_model_dir,exist_ok=True)
+
+#匯入所有label
+train_label_ = []
+for t in range(class_num ):
+    with open(os.path.join(save_pickle_dir,'class'+str(class_)+'_train_label.pickle'), 'rb') as f:
+        train_label_.append(pickle.load(f))
+val_label_ = []
+for t in range(class_num ):
+    with open(os.path.join(save_pickle_dir,'class'+str(class_)+'_val_label.pickle'), 'rb') as f:
+        val_label_.append(pickle.load(f))
+
+#匯入所有confidence
+train_data_ = []
+for t in range(class_num ):
+    with open(os.path.join(save_pickle_dir,'class'+str(class_)+'_train_data.pickle'), 'rb') as f:
+        train_data_.append(pickle.load(f))
+val_data_ = []
+for t in range(class_num ):
+    with open(os.path.join(save_pickle_dir,'class'+str(class_)+'_val_data.pickle'), 'rb') as f:
+        val_data_.append(pickle.load(f))
+
+#訓練各類模型
+for class_n in range(class_num ):
+    print('class '+str(class_n)+' model')
+    # 按batch size包裝training set資料
+    register_1,register_2,train_tensor_list,train_label_list = [[] for x in range(4)]
+    count = 0
+    best_acc = 0
+    for t in range(len(train_data_[class_n])):
+        count+=1
+
+        #不做confidence calibration
+        numpy = FUN.softmax(Variable(train_data_[class_n][t])).data.cpu().numpy()#把input從confidence轉為機率
+
+        #做confidence calibration
+        # caliration = train_data_[class_n][t]/0.5
+        # soft = FUN.softmax(Variable(caliration)).data.cpu()#把input從confidence轉為機率
+        # numpy = soft.numpy()
+
+        # 對input做confidence calibration( 只取confidence高的 )
+        # value , index = torch.sort(train_data_[class_n][t].squeeze(),descending = True)
+        # for t2 in range(len(index)):
+        #     if t2>20:
+        #         pass
+        #     else:
+        #         numpy[0][index[t2]] = numpy[0][index[t2]]
+
+
+        tensor = torch.tensor(numpy)
+        register_1.append(tensor)
+        register_2.append(train_label_[class_n][t])
+        if count % batch_size ==0:
+            a = torch.stack(register_1)
+            b = torch.stack(register_2)
+            train_tensor_list.append(a)
+            train_label_list.append(b)
+            register_1 = []
+            register_2 = []
+    #依bach size打包validation set
+    register_1,register_2,val_tensor_list,val_label_list = [[] for x in range(4)]
+    count = 0
+    for t in range(len(val_data_[class_n])):
+        count+=1
+
+        #不做confidence calibration
+        numpy = FUN.softmax(Variable(val_data_[class_n][t])).data.cpu().numpy()#把input從confidence轉為機率
+
+        #做confidence calibration
+        # caliration = val_data_[class_n][t]/0.5
+        # soft = FUN.softmax(Variable(caliration)).data.cpu()#把input從confidence轉為機率
+        # numpy = soft.numpy()
+
+        # 對input做confidence calibration( 只取confidence高的 )
+        # value , index = torch.sort(val_data_[class_n][t].squeeze(),descending = True)
+        # for t2 in range(len(index)):
+        #     if t2>20:
+        #         pass
+        #     else:
+        #         numpy[0][index[t2]] = numpy[0][index[t2]]
+
+        tensor = torch.tensor(numpy)
+        register_1.append(tensor)
+        register_2.append(val_label_[class_n][t])
+        if count % batch_size ==0:
+            a = torch.stack(register_1)
+            b = torch.stack(register_2)
+            val_tensor_list.append(a)
+            val_label_list.append(b)
+            register_1 = []
+            register_2 = []
+
+    acc_register = 0
+    #開始訓練模型
+    for epoch in range(Epochs):
+        optimizer1 = function.lrfn(epoch,optimizer)
+        train_loss=0.0
+        train_acc=0.0
+        test_loss=0.0
+        test_acc=0.0
+        MyResModel.train()
+        count = 0
+        train_loss_count = 0
+        train_acc_count = 0
+        for data_ in train_tensor_list:
+            optimizer1.zero_grad()
+            pred = MyResModel(data_.to(device))
+            max_,class_ = torch.max(pred.data,1)
+            train_correct = (class_==train_label_list[count].to(device)).sum()
+            train_acc = train_correct / batch_size
+            train_acc_count = train_acc_count + train_acc.item()
+            loss = criterion(pred.to(device),train_label_list[count].to(device))
+            train_loss_count = train_loss_count+loss.item()
+            count+=1
+            loss.backward()
+            optimizer1.step()
+        MyResModel.eval()
+        a = (epoch+1) / 100
+        if count ==0 :
+            count = 1
+        if (epoch+1) % 10 ==0:
+            pass
+            print('epoch : '+ str(int(a*100)) +' train_loss : '+str(train_loss_count/count)+' train_Acc : '+str(train_acc_count/count))
+        #算驗證集loss和acc
+        if (epoch+1) % 100 ==0:
+            count = 0
+            loss_count = 0
+            acc_count = 0
+            for data_ in val_tensor_list:
+                pred = MyResModel(data_.to(device))
+                max_,class_ = torch.max(pred.data,1)
+                correct = (class_==val_label_list[count].to(device)).sum()
+                acc = correct / batch_size
+                acc_count = acc_count + acc.item()
+                loss = criterion(pred.to(device),val_label_list[count].to(device))
+                loss_count = loss_count+loss.item()
+                count+=1
+            if count ==0 :
+                count = 1
+            if acc_count/count >= best_acc:
+                best_acc = acc_count/count
+                torch.save(MyResModel.state_dict(),os.path.join (save_min_model_dir,'model'+str(class_n)+'.pth'))
+                a = (epoch+1) / 100
+                print('epoch : '+ str(a*100) +' loss : '+str(loss_count/count)+' Acc : '+str(acc_count/count))
+                acc_register = acc_count/count
+
+#紀錄min model中準確率好的class      
+    if acc_register >=0.7:
+        good_model_list.append(str(class_n))
+os.makedirs(os.path.join(pickle_dir,'good_model'),exist_ok=True)
+with open(os.path.join(pickle_dir,'good_model','good_model_list.pickle'), 'wb') as f:
+    pickle.dump(good_model_list, f)   

@@ -10,6 +10,7 @@ import torch
 import torch.nn.functional as FUN
 from torch.autograd import Variable
 import torchvision.transforms as T
+import math
 
 #把圖片填充成正方形，防止resize後變形
 def expend_img(img):
@@ -54,93 +55,28 @@ def split_dataset(img_dir,save_dir,train_val_num,name1,name2):
                 new_img = expend_img(img)
                 cv2.imwrite(save_val + os.sep + imgname, new_img)
 
-class UnNormalize(object):
-    def __init__(self, mean, std):
-        self.mean = mean
-        self.std = std
-    def __call__(self, tensor):
-        """
-        Args:
-            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
-        Returns:
-            Tensor: Normalized image.
-        """
-        for t, m, s in zip(tensor, self.mean, self.std):
-            t.mul_(s).add_(m)
-        return tensor
+#算entropy
+def entropy(input):
+    all = 0
+    for t in range(len(input)):
+        if input[t]>=0:
+            en = -(input[t]*math.log(input[t],2))
+            all = all+en
+    return all    
 
-class ImageFolderWithPaths(datasets.ImageFolder):
-    def __init__(self, *args):
-        super(ImageFolderWithPaths, self).__init__(*args)
-        self.trans = args[1]
-    def __len__(self):
-      return len(self.imgs)
-    def __getitem__(self, index):
-        img, label = super(ImageFolderWithPaths, self).__getitem__(index)
-        
-        path = self.imgs[index][0]
-        return (img, label ,path)
-
-def loaddata(data_dir, batch_size, set_name, shuffle,input_size,means,stds):
-    data_transforms = {}
-    data_transforms[set_name] = \
-            transforms.Compose([
-            transforms.Resize(input_size),
-            transforms.CenterCrop(input_size),
-            transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(means, stds)])
-
-    image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x), data_transforms[x]) for x in [set_name]}
-    # num_workers=0 if CPU else = 1
-    dataset_loaders = {x: torch.utils.data.DataLoader(image_datasets[x],batch_size=batch_size,shuffle=shuffle, num_workers=0) for x in [set_name]}
-    data_set_sizes = len(image_datasets[set_name])
-    return dataset_loaders, data_set_sizes
-
-def test_model(model, data_dir, batch_size,set_name):
-    tensor = []
-    class_num = []
-    path = []
-    model.eval()
-    dset_loaders, dset_sizes = loaddata(data_dir=data_dir, batch_size=batch_size, set_name=set_name, shuffle=False)
-    for data in dset_loaders[set_name]:
-        inputs, labels, paths = data #path抓出被分類的圖片的原始路徑
-        labels = labels.type(torch.LongTensor)
-        # GPU
-        inputs, labels = Variable(inputs.cuda()), Variable(labels.cuda())
-        outputs = model(inputs)
-        tensor.append(outputs.data)
-        class_num.append(labels)
-        path.append(paths)
-    return tensor, class_num, path
-
-def model_acc(model, criterion, data_dir, batch_size,set_name):
-    model.eval()
-    running_loss = 0.0
-    running_corrects = 0
-    cont = 0
-    outPre = []
-    outLabel = []
-    dset_loaders, dset_number = loaddata(data_dir=data_dir, batch_size=batch_size, set_name = set_name,shuffle=False)
-    for data in dset_loaders[set_name]:
-        inputs, labels, paths = data #path抓出被分類的圖片的原始路徑
-        labels = labels.type(torch.LongTensor)
-        # GPU
-        inputs, labels = Variable(inputs.cuda()), Variable(labels.cuda())
-        outputs = model(inputs)
-        _, preds = torch.max(outputs.data, 1)
-        loss = criterion(outputs, labels)
-        if cont == 0:
-            outPre = outputs.data.cpu()
-            outLabel = labels.data.cpu()
-        else:
-            outPre = torch.cat((outPre, outputs.data.cpu()), 0)
-            outLabel = torch.cat((outLabel, labels.data.cpu()), 0)
-        running_loss += loss.item() * inputs.size(0)
-        running_corrects += torch.sum(preds == labels.data)
-        cont += len(labels)
-        acc = running_corrects/cont
-    loss = running_loss / dset_number
-    acc = running_corrects.double() / dset_number
-    return dset_number,loss,acc
+# 學習率慢熱加下降
+def lrfn(num_epoch, optimzer):
+    lr_start = 0.001  # 初始值
+    max_lr = 0.005  # 最大值
+    lr_up_epoch =150  # 學習率上升10个epoch
+    lr_sustain_epoch = 50  # 學習率保持不變
+    lr_exp = .8  # 衰减因子
+    if num_epoch < lr_up_epoch:  # 0-10个epoch學習率線性增加
+        lr = (max_lr - lr_start) / lr_up_epoch * num_epoch + lr_start
+    elif num_epoch < lr_up_epoch + lr_sustain_epoch:  # 學習率保持不變
+        lr = max_lr
+    else:  # 指數下降
+        lr = (max_lr - lr_start) * lr_exp ** (num_epoch - lr_up_epoch - lr_sustain_epoch) + lr_start
+    for param_group in optimzer.param_groups:
+        param_group['lr'] = lr
+    return optimzer

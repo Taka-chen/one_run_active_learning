@@ -189,54 +189,57 @@ class ImageFolderWithPaths(datasets.ImageFolder):
         path = self.imgs[index][0]
         return (img, label ,path)
 
-# Load Test images
-def loaddata(data_dir, batch_size, set_name, shuffle):
-    data_transforms = {
-        'train': transforms.Compose([
+def loaddata(data_dir, batch_size, set_name, shuffle,input_size,means,stds):
+    data_transforms = {}
+    data_transforms[set_name] = \
+            transforms.Compose([
             transforms.Resize(input_size),
             transforms.CenterCrop(input_size),
             transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize(means, stds)
-        ]),
-        'val': transforms.Compose([
-            transforms.Resize(input_size),
-            transforms.CenterCrop(input_size),
-            transforms.ToTensor(),
-            transforms.Normalize(means, stds)
-        ]),
-    }
+            transforms.Normalize(means, stds)])
+
     image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x), data_transforms[x]) for x in [set_name]}
     # num_workers=0 if CPU else = 1
-    dataset_loaders = {x: torch.utils.data.DataLoader(image_datasets[x],
-                                                      batch_size=batch_size,
-                                                      shuffle=shuffle, num_workers=0) for x in [set_name]}
+    dataset_loaders = {x: torch.utils.data.DataLoader(image_datasets[x],batch_size=batch_size,shuffle=shuffle, num_workers=0) for x in [set_name]}
     data_set_sizes = len(image_datasets[set_name])
     return dataset_loaders, data_set_sizes
 
-#對unlabelset做test產出pickle檔
-def test_model(model, criterion , batch_size, data_dir):
+#產出對目標的confidence
+def test_model(model, data_dir, batch_size,set_name):
+    tensor = []
+    class_num = []
+    path = []
     model.eval()
-    running_loss = 0.0
-    running_corrects = 0
-    cont = 0
-    outPre = []
-    initi_tensor = []
-    outLabel = []
-    img_path = []
-    dset_loaders, dset_sizes = loaddata(data_dir=data_dir, batch_size=batch_size, set_name='val', shuffle=False)
-    transform = T.ToPILImage()
-    for data in dset_loaders['val']:
+    dset_loaders, dset_sizes = loaddata(data_dir=data_dir, batch_size=batch_size, set_name=set_name, shuffle=False)
+    for data in dset_loaders[set_name]:
         inputs, labels, paths = data #path抓出被分類的圖片的原始路徑
         labels = labels.type(torch.LongTensor)
         # GPU
         inputs, labels = Variable(inputs.cuda()), Variable(labels.cuda())
         outputs = model(inputs)
         tensor.append(outputs.data)
-        _, preds = torch.max(outputs.data, 1)
         class_num.append(labels)
         path.append(paths)
+    return tensor, class_num, path
+
+#產出對某一資料的準確率
+def model_acc(model, criterion, data_dir, batch_size,set_name):
+    model.eval()
+    running_loss = 0.0
+    running_corrects = 0
+    cont = 0
+    outPre = []
+    outLabel = []
+    dset_loaders, dset_number = loaddata(data_dir=data_dir, batch_size=batch_size, set_name = set_name,shuffle=False)
+    for data in dset_loaders[set_name]:
+        inputs, labels, paths = data #path抓出被分類的圖片的原始路徑
+        labels = labels.type(torch.LongTensor)
+        # GPU
+        inputs, labels = Variable(inputs.cuda()), Variable(labels.cuda())
+        outputs = model(inputs)
+        _, preds = torch.max(outputs.data, 1)
         loss = criterion(outputs, labels)
         if cont == 0:
             outPre = outputs.data.cpu()
@@ -244,8 +247,76 @@ def test_model(model, criterion , batch_size, data_dir):
         else:
             outPre = torch.cat((outPre, outputs.data.cpu()), 0)
             outLabel = torch.cat((outLabel, labels.data.cpu()), 0)
-
         running_loss += loss.item() * inputs.size(0)
         running_corrects += torch.sum(preds == labels.data)
         cont += len(labels)
-    return FUN.softmax(Variable(outPre)).data.numpy(), outLabel.numpy(), tensor, class_num, path
+        acc = running_corrects/cont
+    loss = running_loss / dset_number
+    acc = running_corrects.double() / dset_number
+    return dset_number,loss,acc
+
+#min model分類網路
+
+class Residual(nn.Module):  
+    def __init__(self, in_channels, out_channels):
+        super(Residual, self).__init__()
+        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size=1, stride=1)
+        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size=2, stride=1)
+        self.bn1 = nn.BatchNorm1d(out_channels)
+        self.bn2 = nn.BatchNorm1d(out_channels)
+        self.conv4res = nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=2, stride=1)
+        self.AvgPool1d=nn.AdaptiveAvgPool1d(12)
+        self.bn4res = nn.BatchNorm1d(out_channels)
+    def forward(self, X):
+        Y1 = self.conv4res(X)
+        Y1 = self.bn4res(Y1)
+        Y2 = self.bn1(self.conv1(X))
+        Y2 = FUN.relu(Y2)
+        Y2 = self.bn2(self.conv2(Y2))
+        Y2 = FUN.relu(Y2)
+        return Y1 + Y2
+
+def resnet_block(in_channels, out_channels, num_residuals):
+    blk = []
+    for i in range(num_residuals):
+        blk.append(Residual(in_channels, out_channels))
+    return nn.Sequential(*blk)
+
+class LSTM_FCN(torch.nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, layers):
+        super(LSTM_FCN, self).__init__()
+        # LSTM
+        self.conv4lstm = nn.Conv1d(48, 48, kernel_size=2, stride=2)
+        self.rnn = torch.nn.LSTM(input_dim, hidden_dim, num_layers=layers, batch_first=True)
+        # 1D conv
+        self.conv1 = nn.Conv1d(1, 256, kernel_size=2, stride=2)
+        self.res_block=resnet_block(in_channels=256,out_channels=256,num_residuals=3)
+        self.conv2 = nn.Conv1d(256, 16, kernel_size=1, stride=1)
+        self.AvgPool1d=nn.AdaptiveAvgPool1d(48) # length
+        # concat softmax
+        self.fc1 = nn.Linear(768, 256, bias=True)
+        self.dropou1=nn.Dropout(0.7)
+        self.fc2 = nn.Linear(256, 64, bias=False)
+        self.dropou2=nn.Dropout(0.7)
+        self.fc3 = nn.Linear(64, output_dim, bias=False)
+        self.softmax=nn.Softmax(dim=1)
+    def init_model(self):
+        for m in self.modules():
+            if isinstance(m, (torch.nn.Linear, torch.nn.Conv1d)):
+                torch.nn.init.xavier_uniform_(m.weight)
+        print("init success !!")
+    def forward(self, x):  # x=torch.unsqueeze(x,0)   
+        # 1D cnn
+        cnn_out=self.conv1(x)
+        cnn_out=self.res_block(cnn_out)
+        cnn_out=self.conv2(cnn_out)
+        cnn_out=self.AvgPool1d(cnn_out)            
+        y=torch.flatten(cnn_out,start_dim=1)
+        y = self.fc1(y) 
+        y=self.dropou1(y)
+        y = self.fc2(y) 
+        y=self.dropou2(y)
+        y = self.fc3(y) 
+        y= self.softmax(y)
+        return y
+
