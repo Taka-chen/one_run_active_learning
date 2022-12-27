@@ -168,8 +168,6 @@ with open('pickle/cifar_class/cifar_class0_label.pickle', 'rb') as f:
 
 #train分類模型
 
-
-
 Epochs=500
 max_test_acc=0.0
 class_number = 10
@@ -197,8 +195,6 @@ for t in range(len(train_tensor)):
         train_label_list.append(b)
         register_1 = []
         register_2 = []
-
-
 
 for epoch in range(Epochs):
     train_loss=0.0

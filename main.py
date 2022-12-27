@@ -111,8 +111,6 @@ if __name__ == '__main__':
     models=main_model.Efficientnet_train(opt)
     models()
 
-
-
 #產出對second 5 data的confidence
 input_size = 224
 means = [0.485, 0.456, 0.406]
@@ -124,6 +122,7 @@ if __name__ == '__main__':
     net_name = 'efficientnet-b5'
     data_dir = second5_dir+'_split'
     weight_dir = './weight'
+
     set_list = os.listdir(data_dir)
     if not os.path.isdir('pickle'):
         os.mkdir('pickle')
@@ -140,6 +139,22 @@ if __name__ == '__main__':
         #load model
         model.load_state_dict(torch.load(modelft_file))
         criterion = nn.CrossEntropyLoss().cuda()
+
+    modelft_file = os.path.join(weight_dir,first5_model_name)
+    batch_size = 1
+    # GPU時
+    model = efficientnet_pytorch.EfficientNet.from_name(net_name)
+    # 修改全連接層
+    num_ftrs = model._fc.in_features
+    model._fc = nn.Linear(num_ftrs, class_num)
+    model = model.to(device)
+    #load model
+    model.load_state_dict(torch.load(modelft_file))
+    criterion = nn.CrossEntropyLoss().cuda()
+    set_list = os.listdir(data_dir)
+    for name in set_list:
+        tensor, class_num, path = function.test_model(model ,data_dir,batch_size,set_name = name)
+        pickle_dir = './pickle'
         os.makedirs(pickle_dir,exist_ok=True)
         first5_confidence_pickle_dir = os.path.join(pickle_dir,name+'_first5_confidence.pickle')
         first5_classnum_pickle_dir = os.path.join(pickle_dir,name+'_first5_classnum.pickle')
@@ -150,9 +165,13 @@ if __name__ == '__main__':
             pickle.dump(class_num, f)
         with open(first5_path_pickle_dir, 'wb') as f:
             pickle.dump(path, f)
+
         #以 10% 模型產出對second 5 data的confidence
         modelft_file = os.path.join(weight_dir,percent10_model_name)
         model = efficientnet_pytorch.EfficientNet.from_name(net_name) #有GPU時用
+        #產出unlabel set在10% model的confidence
+        modelft_file = os.path.join(weight_dir,percent10_model_name)
+        model = efficientnet_pytorch.EfficientNet.from_name(net_name)
         # 修改全連接層
         num_ftrs = model._fc.in_features
         model._fc = nn.Linear(num_ftrs, class_num)
@@ -161,6 +180,9 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load(modelft_file))
         criterion = nn.CrossEntropyLoss().cuda()
         tensor, class_num, path = main_model.test_model(model ,data_dir,batch_size,set_name = '')
+
+        tensor, class_num, path = function.test_model(model ,data_dir,batch_size,set_name = '')
+        pickle_dir = './pickle'
         os.makedirs(pickle_dir,exist_ok=True)
         percent10_confidence_pickle_dir = os.path.join(pickle_dir,name+'_percent10_confidence.pickle')
         percent10_classnum_pickle_dir = os.path.join(pickle_dir,name+'_percent10_classnum.pickle')
@@ -173,6 +195,7 @@ if __name__ == '__main__':
             pickle.dump(path, f)
 
 #製作min model要用的label和data( 只取最大的x個值 )
+#製作min model要用的label和資料集( 只取最大的x個值 )
 #label類別 0:上升 1:不變 2:下降
 with open(os.path.join(pickle_dir,'train_first5_confidence.pickle'), 'rb') as f:
     train_data = pickle.load(f)
@@ -403,4 +426,49 @@ for class_n in range(class_num ):
         good_model_list.append(str(class_n))
 os.makedirs(os.path.join(pickle_dir,'good_model'),exist_ok=True)
 with open(os.path.join(pickle_dir,'good_model','good_model_list.pickle'), 'wb') as f:
-    pickle.dump(good_model_list, f)   
+    pickle.dump(good_model_list, f)
+with open(os.path.join(pickle_dir,'good_model','good_model_list.pickle'), 'wb') as f:
+    good_model = pickle.load(f)
+print('min model have '+len(good_model)+' acc over target')
+
+#用min model修改10% model產出的confidence(修改前五大)
+with open(percent10_confidence_pickle_dir, 'rb') as f:  
+    result = pickle.load(f)
+with open( percent10_classnum_pickle_dir, 'rb') as f:
+    label = pickle.load(f)
+min_model_list = os.listdir(save_min_model_dir)
+min_model_file = []
+for t in range(len(save_min_model_dir)):
+    min_model_path = os.path.join(save_min_model_dir,min_model_list[t])
+    min_model_file.append(min_model_path)
+for t in tqdm(range(len(result))):     
+    value , index = torch.sort(result[t].squeeze(),descending = True)
+    for t2 in range(int(len(index)/20)):
+        MyResModel.load_state_dict(torch.load(min_model_file[int(index[t2])]))
+        MyResModel = MyResModel.to(device)
+        numpy = FUN.softmax(Variable(result[t])).data.cpu().numpy()
+        tensor = torch.tensor(numpy)
+        tensor = tensor.unsqueeze(0)
+        tensor = tensor.to(device)
+        output = MyResModel(tensor)
+        pre_class = torch.argmax(output)
+        #只修改模型效果好的
+        if index[t2] in good_model:
+            if int(pre_class)==0:
+                result[t][0][int(index[t2])] = result[t][0][int(index[t2])] + result[t][0][int(index[t2])]*0.5
+            if int(pre_class)==1:
+                result[t][0][int(index[t2])] = result[t][0][int(index[t2])]
+            if int(pre_class)==2:
+                result[t][0][int(index[t2])] = result[t][0][int(index[t2])] - result[t][0][int(index[t2])]*0.2
+acc_count = 0
+for t in range(len(result)):        
+        r = torch.argmax(result[t])
+        if int(r) == label[t]:
+            acc_count+=1
+print(acc_count)
+print('acc : '+str(acc_count/len(result)))
+save_revise_confidenxe_dir = os.path.join(pickle_dir,'revise_confidence')
+os.makedirs(save_revise_confidenxe_dir ,exist_ok=True)
+save_revise_confidenxe_path = os.path.join(save_revise_confidenxe_dir,'revise_confidence.pickle')
+with open(save_revise_confidenxe_path, 'wb') as f:
+    pickle.dump(result, f)       
