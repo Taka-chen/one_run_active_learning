@@ -471,4 +471,35 @@ save_revise_confidenxe_dir = os.path.join(pickle_dir,'revise_confidence')
 os.makedirs(save_revise_confidenxe_dir ,exist_ok=True)
 save_revise_confidenxe_path = os.path.join(save_revise_confidenxe_dir,'revise_confidence.pickle')
 with open(save_revise_confidenxe_path, 'wb') as f:
-    pickle.dump(result, f)       
+    pickle.dump(result, f)   
+
+#用改完的confidence算enstropy挑 x% data(各類數量平均)
+with open( percent10_path_pickle_dir , 'rb') as f:
+    path = pickle.load(f)
+with open( save_revise_confidenxe_path , 'rb') as f:
+    result = pickle.load(f)
+class_num = 100
+img_save_dir = 'selection_data' 
+all_en = []
+for t in range(len(result)):
+    odds = FUN.softmax(Variable(result[t]).cpu()).data.numpy()
+    odds = odds.reshape([class_num])
+    data_entropy = function.entropy(odds)
+    all_en.append(data_entropy)
+sort = sorted(range(len(all_en)) , reverse = True,key = lambda k : all_en[k])
+img_dir_list=glob.glob(percent90_dir+os.sep+"*")#獲取每個類别所在的路徑（一個類别對應一個文件夾）
+for class_dir in img_dir_list:
+    class_name=class_dir.split(os.sep)[-1] #獲取當前類别
+    save_train=img_save_dir+os.sep+os.sep+class_name
+    os.makedirs(save_train,exist_ok=True)#建立對應的文件夾
+con = [0 for t in range(class_num)]
+for t in range(int(len(sort))):
+    p = re.sub("\,","",str(path [sort[t]]))
+    p = re.sub("\(","",p)
+    p = re.sub("\)","",p)
+    p = re.sub("\'","",p)
+    split = p.split('\\')
+    if con[int(split[4])] <= (int(len(sort))/class_num) *0.5:
+        con[int(split[4])] = con[int(split[4])]+1
+        img = cv2.imread(p)
+        cv2.imwrite(img_save_dir+'/'+ split[4]+'/'+split[6], img)    
