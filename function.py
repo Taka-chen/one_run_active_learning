@@ -48,12 +48,20 @@ def split_dataset(img_dir,save_dir,train_val_num,name1,name2):
             imgname=Path(imgpath).name #獲取文件名
             if imgpath in train_list:
                 img=cv2.imread(imgpath)
-                new_img=expend_img(img)
-                cv2.imwrite(save_train+os.sep+imgname,new_img)
+                NoneType = type(None)
+                if type(img) == NoneType:
+                    continue
+                else:
+                    new_img=expend_img(img)
+                    cv2.imwrite(save_train+os.sep+imgname,new_img)
             else: #將除了訓練集意外的數據均視為驗證集
                 img = cv2.imread(imgpath)
-                new_img = expend_img(img)
-                cv2.imwrite(save_val + os.sep + imgname, new_img)
+                NoneType = type(None)
+                if type(img) == NoneType:
+                    continue
+                else:
+                    new_img = expend_img(img)
+                    cv2.imwrite(save_val + os.sep + imgname, new_img)
 
 #算entropy
 def entropy(input):
