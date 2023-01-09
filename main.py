@@ -11,7 +11,7 @@ import torchvision
 import cv2
 import glob
 import random
-from pathlib import Path
+# from pathlib import Path
 from torchvision import datasets,transforms
 import torch
 import torch.optim as optim
@@ -37,28 +37,31 @@ import function
 import main_model
 
 device="cuda" if torch.cuda.is_available() else "cpu" 
-class_num = 100
+class_num = 10
 
-img_dir = ''
-save_dir = ''
+img_dir = 'data/cifar10'
+save_dir = 'data'
 train_val_num = 0.1
-function.split_dataset(img_dir,save_dir,train_val_num,name1='10_percent',name2='90_percent') #切分出10%資料
+if not os.path.isdir(os.path.join(save_dir,'10_percent')) and not os.path.isdir(os.path.join(save_dir,'90_percent')):
+    function.split_dataset(img_dir,save_dir,train_val_num,name1='10_percent',name2='90_percent') #切分出10%資料
 percent90_dir = os.path.join(save_dir,'90_percent')
 percent10_dir = os.path.join(save_dir,'10_percent') 
 train_val_num = 0.8
-if not os.path.isdir(percent10_dir+'_split'):
-    os.mkdir(percent10_dir+'_split')
-function.split_dataset(percent10_dir,percent10_dir+'_split',train_val_num,name1='train',name2='val') #將5%資料切分出訓練集和測試集
+os.makedirs(percent10_dir+'_split',exist_ok=True)
+if not os.path.isdir(os.path.join(percent10_dir+'_split','train')) and not os.path.isdir(os.path.join(percent10_dir+'_split','val')):
+    function.split_dataset(percent10_dir,percent10_dir+'_split',train_val_num,name1='train',name2='val') #將5%資料切分出訓練集和測試集
 train_val_num = 0.5
-function.split_dataset(percent10_dir,save_dir,train_val_num,name1='first5_percent',name2='second5_percent') #將10%資料切成兩個5%資料
+if not os.path.isdir(os.path.join(save_dir,'first5_percent')) and not os.path.isdir(os.path.join(save_dir,'second5_percent')):  
+    function.split_dataset(percent10_dir,save_dir,train_val_num,name1='first5_percent',name2='second5_percent') #將10%資料切成兩個5%資料
 second5_dir = os.path.join(save_dir,'second5_percent')
 first5_dir = os.path.join(save_dir,'first5_percent')
 train_val_num = 0.8
-if not os.path.isdir(first5_dir+'_split'):
-    os.mkdir(first5_dir+'_split')
-function.split_dataset(first5_dir,first5_dir+'_split',train_val_num,name1='train',name2='val') #將5%資料切分出訓練集和測試集
+os.makedirs(first5_dir+'_split',exist_ok=True)
+if not os.path.isdir(os.path.join(first5_dir+'_split','train')) and not os.path.isdir(os.path.join(first5_dir+'_split','val')):
+    function.split_dataset(first5_dir,first5_dir+'_split',train_val_num,name1='train',name2='val') #將5%資料切分出訓練集和測試集
 train_path = (first5_dir+'_split')
-function.split_dataset(second5_dir,second5_dir+'_split',train_val_num,name1='train',name2='val') #將5%資料切分出訓練集和測試集
+if not os.path.isdir(os.path.join(second5_dir+'_split','train')) and not os.path.isdir(os.path.join(second5_dir+'_split','val')):
+    function.split_dataset(second5_dir,second5_dir+'_split',train_val_num,name1='train',name2='val') #將5%資料切分出訓練集和測試集
 
 #train 5% data
 #main_model参數設置
@@ -69,7 +72,7 @@ def parse_opt():
     parser.add_argument("--weights",type=str,default="./model/efficientnet-b5-b6417697.pth",help='initial weights path')#預訓練模型路徑
     parser.add_argument("--img-dir",type=str,default=train_path,help="train image path") #數據集的路徑
     parser.add_argument("--imgsz",type=int,default=224,help="image size") #圖像尺寸
-    parser.add_argument("--epochs",type=int,default=50,help="train epochs")#訓練批次
+    parser.add_argument("--epochs",type=int,default=1,help="train epochs")#訓練批次
     parser.add_argument("--batch-size",type=int,default=8,help="train batch-size") #batch-size
     parser.add_argument("--class_num",type=int,default=class_num,help="class num") #類別數
     parser.add_argument("--lr",type=float,default=0.0005,help="Init lr") #學習率初始值
@@ -88,14 +91,13 @@ if __name__ == '__main__':
 #train 10% data
 #main_model参數設置
 train_path = (percent10_dir+'_split')
-pretrain_weight_path = os.path.join(save_model_path,first5_model_name)
 percent10_model_name = 'efficientb5_10percent.pth'
 def parse_opt():
     parser=argparse.ArgumentParser()
-    parser.add_argument("--weights" , type=str,default=pretrain_weight_path , help='initial weights path')#預訓練模型路徑
+    parser.add_argument("--weights" , type=str,default="./model/efficientnet-b5-b6417697.pth" , help='initial weights path')#預訓練模型路徑
     parser.add_argument("--img-dir",type=str,default=train_path,help="train image path") #數據集的路徑
     parser.add_argument("--imgsz",type=int,default=224,help="image size") #圖像尺寸
-    parser.add_argument("--epochs",type=int,default=50,help="train epochs")#訓練批次
+    parser.add_argument("--epochs",type=int,default=1,help="train epochs")#訓練批次
     parser.add_argument("--batch-size",type=int,default=8,help="train batch-size") #batch-size
     parser.add_argument("--class_num",type=int,default=class_num,help="class num") #類別數
     parser.add_argument("--lr",type=float,default=0.0005,help="Init lr") #學習率初始值
@@ -153,7 +155,7 @@ if __name__ == '__main__':
     criterion = nn.CrossEntropyLoss().cuda()
     set_list = os.listdir(data_dir)
     for name in set_list:
-        tensor, class_num, path = function.test_model(model ,data_dir,batch_size,set_name = name)
+        tensor, class_num, path = main_model.test_model(model ,data_dir,batch_size,set_name = name)
         pickle_dir = './pickle'
         os.makedirs(pickle_dir,exist_ok=True)
         first5_confidence_pickle_dir = os.path.join(pickle_dir,name+'_first5_confidence.pickle')
@@ -269,7 +271,7 @@ optimizer = torch.optim.SGD(MyResModel.parameters(), lr=0.001, momentum=0.8)
 
 #train min model分類模型
 #參數設定
-Epochs=800
+Epochs=100
 max_test_acc=0.0
 batch_size = 32
 good_model_list = []

@@ -97,10 +97,7 @@ class Efficientnet_train():
                 print("批次%d的验证集准确率" % (ech + 1), correct / total)
             if best_acc < test_acc:
                 best_acc = test_acc
-                start_time=(time.strftime("%m%d",time.localtime()))
-                save_weight=self.save_dir+os.sep+start_time #保存路徑
-                os.makedirs(save_weight,exist_ok=True)
-                torch.save(self.model.state_dict(), save_weight + os.sep + self.save_model_name)#不加state_dict()存法會直接把模型架構和權重一起存入weight檔中
+                torch.save(self.model.state_dict(), os.path.join(self.save_dir,self.save_model_name) )#不加state_dict()存法會直接把模型架構和權重一起存入weight檔中
                                                                                                        #加state_dict()則只單純存權重(不易報錯)
 
   #數據處理
