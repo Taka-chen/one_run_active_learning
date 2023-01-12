@@ -39,8 +39,8 @@ import main_model
 device="cuda" if torch.cuda.is_available() else "cpu" 
 class_num = 10
 
-img_dir = 'data/cifar10'
-save_dir = 'data'
+img_dir = '../all_file/data/cifar10'
+save_dir = '../all_file/data'
 train_val_num = 0.1
 if not os.path.isdir(os.path.join(save_dir,'10_percent')) and not os.path.isdir(os.path.join(save_dir,'90_percent')):
     function.split_dataset(img_dir,save_dir,train_val_num,name1='10_percent',name2='90_percent') #切分出10%資料
@@ -65,11 +65,11 @@ if not os.path.isdir(os.path.join(second5_dir+'_split','train')) and not os.path
 
 #train 5% data
 #main_model参數設置
-save_model_path = './weight'
+save_model_path = '../all_file/weight'
 first5_model_name = 'efficientb5_first5.pth'
 def parse_opt():
     parser=argparse.ArgumentParser()
-    parser.add_argument("--weights",type=str,default="./model/efficientnet-b5-b6417697.pth",help='initial weights path')#預訓練模型路徑
+    parser.add_argument("--weights",type=str,default="../all_file/model/efficientnet-b5-b6417697.pth",help='initial weights path')#預訓練模型路徑
     parser.add_argument("--img-dir",type=str,default=train_path,help="train image path") #數據集的路徑
     parser.add_argument("--imgsz",type=int,default=224,help="image size") #圖像尺寸
     parser.add_argument("--epochs",type=int,default=1,help="train epochs")#訓練批次
@@ -94,7 +94,7 @@ train_path = (percent10_dir+'_split')
 percent10_model_name = 'efficientb5_10percent.pth'
 def parse_opt():
     parser=argparse.ArgumentParser()
-    parser.add_argument("--weights" , type=str,default="./model/efficientnet-b5-b6417697.pth" , help='initial weights path')#預訓練模型路徑
+    parser.add_argument("--weights" , type=str,default="../all_file/model/efficientnet-b5-b6417697.pth" , help='initial weights path')#預訓練模型路徑
     parser.add_argument("--img-dir",type=str,default=train_path,help="train image path") #數據集的路徑
     parser.add_argument("--imgsz",type=int,default=224,help="image size") #圖像尺寸
     parser.add_argument("--epochs",type=int,default=1,help="train epochs")#訓練批次
@@ -123,7 +123,7 @@ if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     net_name = 'efficientnet-b5'
     data_dir = second5_dir+'_split'
-    weight_dir = './weight'
+    weight_dir = '../all_file/weight'
 
     set_list = os.listdir(data_dir)
     if not os.path.isdir('pickle'):
@@ -156,7 +156,7 @@ if __name__ == '__main__':
     set_list = os.listdir(data_dir)
     for name in set_list:
         tensor, class_num, path = main_model.test_model(model ,data_dir,batch_size,set_name = name)
-        pickle_dir = './pickle'
+        pickle_dir = '../all_file/pickle'
         os.makedirs(pickle_dir,exist_ok=True)
         first5_confidence_pickle_dir = os.path.join(pickle_dir,name+'_first5_confidence.pickle')
         first5_classnum_pickle_dir = os.path.join(pickle_dir,name+'_first5_classnum.pickle')
@@ -184,7 +184,7 @@ if __name__ == '__main__':
         tensor, class_num, path = main_model.test_model(model ,data_dir,batch_size,set_name = '')
 
         tensor, class_num, path = function.test_model(model ,data_dir,batch_size,set_name = '')
-        pickle_dir = './pickle'
+        pickle_dir = '../all_file/pickle'
         os.makedirs(pickle_dir,exist_ok=True)
         percent10_confidence_pickle_dir = os.path.join(pickle_dir,name+'_percent10_confidence.pickle')
         percent10_classnum_pickle_dir = os.path.join(pickle_dir,name+'_percent10_classnum.pickle')
@@ -276,7 +276,7 @@ max_test_acc=0.0
 batch_size = 32
 good_model_list = []
 device = 'cuda'
-save_min_model_dir = 'min_model_weight'
+save_min_model_dir = '../all_file/min_model_weight'
 os.makedirs(save_min_model_dir,exist_ok=True)
 
 #匯入所有label
@@ -481,7 +481,7 @@ with open( percent10_path_pickle_dir , 'rb') as f:
 with open( save_revise_confidenxe_path , 'rb') as f:
     result = pickle.load(f)
 class_num = 100
-img_save_dir = 'selection_data' 
+img_save_dir = '../all_file/selection_data' 
 all_en = []
 for t in range(len(result)):
     odds = FUN.softmax(Variable(result[t]).cpu()).data.numpy()
