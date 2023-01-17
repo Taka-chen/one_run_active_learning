@@ -2,42 +2,24 @@
 
 from __future__ import print_function, division
 import os  
-import pandas as pd
-import requests
-import numpy as np
 import re
-import math
-import torchvision
 import cv2
 import glob
-import random
-# from pathlib import Path
-from torchvision import datasets,transforms
 import torch
-import torch.optim as optim
 import torch.nn as nn
-from torch.utils.data import DataLoader
-from efficientnet_pytorch import EfficientNet
 import time
 import argparse
-from time import sleep
-from tqdm import tqdm, trange
-from PIL import Image
 from torch.autograd import Variable
 import torch.nn.functional as FUN
-from scipy import io
 import efficientnet_pytorch
-import torchvision.transforms as T
-import PIL
 import pickle
-import torchvision.datasets as dsets
-from scipy.misc import imsave
-import torch.nn.functional as F
 import function
 import main_model
 
+start_time = time.perf_counter() #程式初始時間
+
 device="cuda" if torch.cuda.is_available() else "cpu" 
-class_num = 10
+class_number = 10
 
 img_dir = '../all_file/data/cifar10'
 save_dir = '../all_file/data'
@@ -63,7 +45,12 @@ train_path = (first5_dir+'_split')
 if not os.path.isdir(os.path.join(second5_dir+'_split','train')) and not os.path.isdir(os.path.join(second5_dir+'_split','val')):
     function.split_dataset(second5_dir,second5_dir+'_split',train_val_num,name1='train',name2='val') #將5%資料切分出訓練集和測試集
 
-#train 5% data
+#///計算執行時間///
+end_time = time.perf_counter()
+elapsed_time = end_time - start_time
+print("Data preparation completed time: ", "{:.0f}".format(elapsed_time))
+
+#///train 5% data///
 #main_model参數設置
 save_model_path = '../all_file/weight'
 first5_model_name = 'efficientb5_first5.pth'
@@ -74,7 +61,7 @@ def parse_opt():
     parser.add_argument("--imgsz",type=int,default=224,help="image size") #圖像尺寸
     parser.add_argument("--epochs",type=int,default=1,help="train epochs")#訓練批次
     parser.add_argument("--batch-size",type=int,default=8,help="train batch-size") #batch-size
-    parser.add_argument("--class_num",type=int,default=class_num,help="class num") #類別數
+    parser.add_argument("--class_num",type=int,default=class_number,help="class num") #類別數
     parser.add_argument("--lr",type=float,default=0.0005,help="Init lr") #學習率初始值
     parser.add_argument("--m",type=float,default=0.9,help="optimer momentum") #動量
     parser.add_argument("--save-dir" , type=str , default=save_model_path , help="save models dir")#保存模型路徑
@@ -88,7 +75,12 @@ if __name__ == '__main__':
     models=main_model.Efficientnet_train(opt)
     models()
 
-#train 10% data
+#///計算執行時間///
+end_time = time.perf_counter()
+elapsed_time = end_time - start_time
+print("5% model training completed time: ", "{:.0f}".format(elapsed_time))
+
+#///train 10% data///
 #main_model参數設置
 train_path = (percent10_dir+'_split')
 percent10_model_name = 'efficientb5_10percent.pth'
@@ -99,7 +91,7 @@ def parse_opt():
     parser.add_argument("--imgsz",type=int,default=224,help="image size") #圖像尺寸
     parser.add_argument("--epochs",type=int,default=1,help="train epochs")#訓練批次
     parser.add_argument("--batch-size",type=int,default=8,help="train batch-size") #batch-size
-    parser.add_argument("--class_num",type=int,default=class_num,help="class num") #類別數
+    parser.add_argument("--class_num",type=int,default=class_number,help="class num") #類別數
     parser.add_argument("--lr",type=float,default=0.0005,help="Init lr") #學習率初始值
     parser.add_argument("--m",type=float,default=0.9,help="optimer momentum") #動量
     parser.add_argument("--save-dir" , type=str , default=save_model_path , help="save models dir")#保存模型路徑
@@ -113,7 +105,12 @@ if __name__ == '__main__':
     models=main_model.Efficientnet_train(opt)
     models()
 
-#產出對second 5 data的confidence
+#///計算執行時間///
+end_time = time.perf_counter()
+elapsed_time = end_time - start_time
+print("10% model training completed time: ", "{:.0f}".format(elapsed_time))
+
+#///產出對second 5 data的confidence///
 input_size = 224
 means = [0.485, 0.456, 0.406]
 stds = [0.229, 0.224, 0.225]
@@ -124,96 +121,85 @@ if __name__ == '__main__':
     net_name = 'efficientnet-b5'
     data_dir = second5_dir+'_split'
     weight_dir = '../all_file/weight'
-
     set_list = os.listdir(data_dir)
     if not os.path.isdir('pickle'):
         os.mkdir('pickle')
-    pickle_dir = './pickle'
-    for name in set_list:
-        #以 first 5% 模型產出對second 5 data的confidence
-        modelft_file = os.path.join(weight_dir,first5_model_name)
-        batch_size = 1
-        model = efficientnet_pytorch.EfficientNet.from_name(net_name) #有GPU時用
-        # 修改全連接層
-        num_ftrs = model._fc.in_features
-        model._fc = nn.Linear(num_ftrs, class_num)
-        model = model.to(device)
-        #load model
-        model.load_state_dict(torch.load(modelft_file))
-        criterion = nn.CrossEntropyLoss().cuda()
-
+    pickle_dir = '../all_file/pickle'
+  
+    #///定義 first5 model///
     modelft_file = os.path.join(weight_dir,first5_model_name)
     batch_size = 1
     # GPU時
     model = efficientnet_pytorch.EfficientNet.from_name(net_name)
     # 修改全連接層
     num_ftrs = model._fc.in_features
-    model._fc = nn.Linear(num_ftrs, class_num)
+    model._fc = nn.Linear(num_ftrs, class_number)
     model = model.to(device)
     #load model
     model.load_state_dict(torch.load(modelft_file))
     criterion = nn.CrossEntropyLoss().cuda()
     set_list = os.listdir(data_dir)
+
+    #///定義 10% model///
+    model2 = efficientnet_pytorch.EfficientNet.from_name(net_name) #有GPU時用
+    # 修改全連接層
+    num_ftrs2 = model2._fc.in_features
+    model2._fc = nn.Linear(num_ftrs2, class_number)
+    model2 = model2.to(device)
+    #load model
+    model2.load_state_dict(torch.load(modelft_file))
+
     for name in set_list:
-        tensor, class_num, path = main_model.test_model(model ,data_dir,batch_size,set_name = name)
+        #///使用 first5 model///
+        tensor, pre_result, path = main_model.test_model(model ,data_dir,batch_size,set_name = name)
         pickle_dir = '../all_file/pickle'
         os.makedirs(pickle_dir,exist_ok=True)
-        first5_confidence_pickle_dir = os.path.join(pickle_dir,name+'_first5_confidence.pickle')
-        first5_classnum_pickle_dir = os.path.join(pickle_dir,name+'_first5_classnum.pickle')
-        first5_path_pickle_dir = os.path.join(pickle_dir,name+'_first5_path.pickle')
+        first5_confidence_pickle_dir = os.path.join(pickle_dir,'first5M_secondD_'+name+'_confidence.pickle')
+        first5_classnum_pickle_dir = os.path.join(pickle_dir,'first5M_secondD_'+name+'_classnum.pickle')
+        first5_path_pickle_dir = os.path.join(pickle_dir,'first5M_secondD_'+name+'_path.pickle')
         with open(first5_confidence_pickle_dir , 'wb') as f:
             pickle.dump(tensor, f)
         with open(first5_classnum_pickle_dir, 'wb') as f:
-            pickle.dump(class_num, f)
+            pickle.dump(pre_result, f)
         with open(first5_path_pickle_dir, 'wb') as f:
             pickle.dump(path, f)
-
-        #以 10% 模型產出對second 5 data的confidence
-        modelft_file = os.path.join(weight_dir,percent10_model_name)
-        model = efficientnet_pytorch.EfficientNet.from_name(net_name) #有GPU時用
-        #產出unlabel set在10% model的confidence
-        modelft_file = os.path.join(weight_dir,percent10_model_name)
-        model = efficientnet_pytorch.EfficientNet.from_name(net_name)
-        # 修改全連接層
-        num_ftrs = model._fc.in_features
-        model._fc = nn.Linear(num_ftrs, class_num)
-        model = model.to(device)
-        #load model
-        model.load_state_dict(torch.load(modelft_file))
-        criterion = nn.CrossEntropyLoss().cuda()
-        tensor, class_num, path = main_model.test_model(model ,data_dir,batch_size,set_name = '')
-
-        tensor, class_num, path = function.test_model(model ,data_dir,batch_size,set_name = '')
-        pickle_dir = '../all_file/pickle'
-        os.makedirs(pickle_dir,exist_ok=True)
-        percent10_confidence_pickle_dir = os.path.join(pickle_dir,name+'_percent10_confidence.pickle')
-        percent10_classnum_pickle_dir = os.path.join(pickle_dir,name+'_percent10_classnum.pickle')
-        percent10_path_pickle_dir = os.path.join(pickle_dir,name+'_percent10_path.pickle')
+        #///使用 10% model///
+        tensor2, pre_result2, path2 = main_model.test_model(model2 ,data_dir,batch_size,set_name = name)
+        pickle_dir2 = '../all_file/pickle'
+        os.makedirs(pickle_dir2,exist_ok=True)
+        percent10_confidence_pickle_dir = os.path.join(pickle_dir2,'percent10M_secondD_'+name+'_confidence.pickle')
+        percent10_classnum_pickle_dir = os.path.join(pickle_dir2,'percent10M_secondD_'+name+'_classnum.pickle')
+        percent10_path_pickle_dir = os.path.join(pickle_dir2,'percent10M_secondD_'+name+'_path.pickle')
         with open(percent10_confidence_pickle_dir , 'wb') as f:
-            pickle.dump(tensor, f)
+            pickle.dump(tensor2, f)
         with open(percent10_classnum_pickle_dir, 'wb') as f:
-            pickle.dump(class_num, f)
+            pickle.dump(pre_result2, f)
         with open(percent10_path_pickle_dir, 'wb') as f:
-            pickle.dump(path, f)
+            pickle.dump(path2, f)
+
+#///計算執行時間///
+end_time = time.perf_counter()
+elapsed_time = end_time - start_time
+print("product second5 cofidence completed time: ", "{:.0f}".format(elapsed_time))
 
 #製作min model要用的label和data( 只取最大的x個值 )
 #製作min model要用的label和資料集( 只取最大的x個值 )
 #label類別 0:上升 1:不變 2:下降
-with open(os.path.join(pickle_dir,'train_first5_confidence.pickle'), 'rb') as f:
+with open(os.path.join(pickle_dir,'first5M_secondD_train_confidence.pickle'), 'rb') as f:
     train_data = pickle.load(f)
-with open(os.path.join(pickle_dir,'train_percent10_confidence.pickle'), 'rb') as f:
+with open(os.path.join(pickle_dir,'percent10M_secondD_train_confidence.pickle'), 'rb') as f:
     train_label = pickle.load(f)
-with open(os.path.join(pickle_dir,'val_first5_confidence.pickle'), 'rb') as f:
+with open(os.path.join(pickle_dir,'first5M_secondD_val_confidence.pickle'), 'rb') as f:
     val_data = pickle.load(f)
-with open(os.path.join(pickle_dir,'val_percent10_confidence.pickle'), 'rb') as f:
+with open(os.path.join(pickle_dir,'percent10M_secondD_val_confidence.pickle'), 'rb') as f:
     val_label = pickle.load(f)
-for class_ in range(class_num):
+for class_ in range(class_number):
     t_label,t_data,v_label,v_data  = [ []for x in range(4)]
     save_pickle_dir = os.path.join(pickle_dir,'min_model',str(class_))
     os.makedirs(save_pickle_dir, exist_ok=True)
     for t in range(len(train_data)):
         value , index = torch.sort(train_data[t].squeeze(),descending = True)
-        for t2 in range(int(len(index)/20)):
+        for t2 in range(int(len(index)/5)):
             if int(index[t2]) == class_:
                 t_data.append(train_data[t])
                 differ = train_label[t][0][class_] - train_data[t][0][class_]
@@ -238,7 +224,7 @@ for class_ in range(class_num):
         pickle.dump(label, f)
     for t in range(len(val_data)):
         value , index = torch.sort(val_data[t].squeeze(),descending = True)
-        for t2 in range(int(len(index)/20)):
+        for t2 in range(int(len(index)/5)):
             if int(index[t2]) == class_:
                 v_data.append(val_data[t])
                 differ = val_label[t][0][class_] - val_data[t][0][class_]
@@ -262,6 +248,11 @@ for class_ in range(class_num):
     with open(os.path.join(save_pickle_dir,'class'+str(class_)+'_val_label.pickle'), 'wb') as f:
         pickle.dump(label2, f)
 
+#///計算執行時間///
+end_time = time.perf_counter()
+elapsed_time = end_time - start_time
+print("produce min model data completed time: ", "{:.0f}".format(elapsed_time))
+
 #定義min model分類模型
 device="cuda" if torch.cuda.is_available() else "cpu"
 MyResModel = main_model.LSTM_FCN(input_dim=1, hidden_dim=32, output_dim=3, layers=1).to(device)
@@ -281,26 +272,26 @@ os.makedirs(save_min_model_dir,exist_ok=True)
 
 #匯入所有label
 train_label_ = []
-for t in range(class_num ):
+for t in range(class_number ):
     with open(os.path.join(save_pickle_dir,'class'+str(class_)+'_train_label.pickle'), 'rb') as f:
         train_label_.append(pickle.load(f))
 val_label_ = []
-for t in range(class_num ):
+for t in range(class_number ):
     with open(os.path.join(save_pickle_dir,'class'+str(class_)+'_val_label.pickle'), 'rb') as f:
         val_label_.append(pickle.load(f))
 
 #匯入所有confidence
 train_data_ = []
-for t in range(class_num ):
+for t in range(class_number ):
     with open(os.path.join(save_pickle_dir,'class'+str(class_)+'_train_data.pickle'), 'rb') as f:
         train_data_.append(pickle.load(f))
 val_data_ = []
-for t in range(class_num ):
+for t in range(class_number ):
     with open(os.path.join(save_pickle_dir,'class'+str(class_)+'_val_data.pickle'), 'rb') as f:
         val_data_.append(pickle.load(f))
 
 #訓練各類模型
-for class_n in range(class_num ):
+for class_n in range(class_number ):
     print('class '+str(class_n)+' model')
     # 按batch size包裝training set資料
     register_1,register_2,train_tensor_list,train_label_list = [[] for x in range(4)]
@@ -423,15 +414,20 @@ for class_n in range(class_num ):
                 print('epoch : '+ str(a*100) +' loss : '+str(loss_count/count)+' Acc : '+str(acc_count/count))
                 acc_register = acc_count/count
 
-#紀錄min model中準確率好的class      
-    if acc_register >=0.7:
+    #紀錄min model中準確率好的class      
+    if acc_register >=0.3:
         good_model_list.append(str(class_n))
 os.makedirs(os.path.join(pickle_dir,'good_model'),exist_ok=True)
 with open(os.path.join(pickle_dir,'good_model','good_model_list.pickle'), 'wb') as f:
     pickle.dump(good_model_list, f)
-with open(os.path.join(pickle_dir,'good_model','good_model_list.pickle'), 'wb') as f:
+with open(os.path.join(pickle_dir,'good_model','good_model_list.pickle'), 'rb') as f:
     good_model = pickle.load(f)
-print('min model have '+len(good_model)+' acc over target')
+print('min model have '+str(len(good_model))+' acc over target')
+
+#///計算執行時間///
+end_time = time.perf_counter()
+elapsed_time = end_time - start_time
+print("min model training completed time: ", "{:.0f}".format(elapsed_time))
 
 #用min model修改10% model產出的confidence(修改前五大)
 with open(percent10_confidence_pickle_dir, 'rb') as f:  
@@ -440,10 +436,10 @@ with open( percent10_classnum_pickle_dir, 'rb') as f:
     label = pickle.load(f)
 min_model_list = os.listdir(save_min_model_dir)
 min_model_file = []
-for t in range(len(save_min_model_dir)):
+for t in range(len(min_model_list)):
     min_model_path = os.path.join(save_min_model_dir,min_model_list[t])
     min_model_file.append(min_model_path)
-for t in tqdm(range(len(result))):     
+for t in range(len(result)):     
     value , index = torch.sort(result[t].squeeze(),descending = True)
     for t2 in range(int(len(index)/20)):
         MyResModel.load_state_dict(torch.load(min_model_file[int(index[t2])]))
@@ -467,25 +463,28 @@ for t in range(len(result)):
         r = torch.argmax(result[t])
         if int(r) == label[t]:
             acc_count+=1
-print(acc_count)
-print('acc : '+str(acc_count/len(result)))
+print('after min model revise acc : '+str(acc_count/len(result)))
 save_revise_confidenxe_dir = os.path.join(pickle_dir,'revise_confidence')
 os.makedirs(save_revise_confidenxe_dir ,exist_ok=True)
 save_revise_confidenxe_path = os.path.join(save_revise_confidenxe_dir,'revise_confidence.pickle')
 with open(save_revise_confidenxe_path, 'wb') as f:
     pickle.dump(result, f)   
 
+#///計算執行時間///
+end_time = time.perf_counter()
+elapsed_time = end_time - start_time
+print("min model revise confidence completed time: ", "{:.0f}".format(elapsed_time))
+
 #用改完的confidence算enstropy挑 x% data(各類數量平均)
 with open( percent10_path_pickle_dir , 'rb') as f:
     path = pickle.load(f)
 with open( save_revise_confidenxe_path , 'rb') as f:
     result = pickle.load(f)
-class_num = 100
 img_save_dir = '../all_file/selection_data' 
 all_en = []
 for t in range(len(result)):
     odds = FUN.softmax(Variable(result[t]).cpu()).data.numpy()
-    odds = odds.reshape([class_num])
+    odds = odds.reshape([class_number])
     data_entropy = function.entropy(odds)
     all_en.append(data_entropy)
 sort = sorted(range(len(all_en)) , reverse = True,key = lambda k : all_en[k])
@@ -494,14 +493,22 @@ for class_dir in img_dir_list:
     class_name=class_dir.split(os.sep)[-1] #獲取當前類别
     save_train=img_save_dir+os.sep+os.sep+class_name
     os.makedirs(save_train,exist_ok=True)#建立對應的文件夾
-con = [0 for t in range(class_num)]
+con = [0 for t in range(class_number)] #創一個維度等於模型類別數的list
 for t in range(int(len(sort))):
-    p = re.sub("\,","",str(path [sort[t]]))
-    p = re.sub("\(","",p)
-    p = re.sub("\)","",p)
-    p = re.sub("\'","",p)
-    split = p.split('\\')
-    if con[int(split[4])] <= (int(len(sort))/class_num) *0.5:
-        con[int(split[4])] = con[int(split[4])]+1
-        img = cv2.imread(p)
-        cv2.imwrite(img_save_dir+'/'+ split[4]+'/'+split[6], img)    
+    re_path = str(path [sort[t]]).replace('\\','/')
+    re_path = re_path.replace('('')''\,','')
+    s_path = re_path.rsplit('/',2) #把照片所在的資料夾名和檔名切出來
+    print('--------debug--------')
+    print(re_path)
+    print(s_path[1])
+    print(s_path[2])
+    print('--------debug end--------')
+    if con[int(s_path[1])] <= (int(len(sort))/class_number) *0.5: #控制每一類數量平均
+        con[int(s_path[1])] = con[int(s_path[1])]+1
+        img = cv2.imread (path[sort[t]])
+        cv2.imwrite(img_save_dir+'/'+ s_path[1]+'/'+s_path[2], img)    
+
+#///計算執行時間///
+end_time = time.perf_counter()
+elapsed_time = end_time - start_time
+print("select target quantity data completed time: ", "{:.0f}".format(elapsed_time))

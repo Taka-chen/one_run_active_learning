@@ -94,7 +94,7 @@ class Efficientnet_train():
                     total += labels.size(0)
                     correct += pred.eq(labels).cpu().sum()
                 test_acc = correct / total
-                print("批次%d的验证集准确率" % (ech + 1), correct / total)
+                print("Epoch %d validation acc : " % (ech + 1), correct / total)
             if best_acc < test_acc:
                 best_acc = test_acc
                 torch.save(self.model.state_dict(), os.path.join(self.save_dir,self.save_model_name) )#不加state_dict()存法會直接把模型架構和權重一起存入weight檔中
