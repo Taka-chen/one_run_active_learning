@@ -122,9 +122,10 @@ if __name__ == '__main__':
     data_dir = second5_dir+'_split'
     weight_dir = '../all_file/weight'
     set_list = os.listdir(data_dir)
-    if not os.path.isdir('pickle'):
-        os.mkdir('pickle')
     pickle_dir = '../all_file/pickle'
+    if not os.path.isdir(pickle_dir):
+        os.mkdir(pickle_dir)
+    
   
     #///定義 first5 model///
     modelft_file = os.path.join(weight_dir,first5_model_name)
@@ -495,8 +496,7 @@ for class_dir in img_dir_list:
     os.makedirs(save_train,exist_ok=True)#建立對應的文件夾
 con = [0 for t in range(class_number)] #創一個維度等於模型類別數的list
 for t in range(int(len(sort))):
-    re_path = str(path [sort[t]]).replace('\\','/')
-    re_path = re_path.replace('('')''\,','')
+    re_path = str(path [sort[t]]).replace('\\','/').replace('//','/').replace('(','').replace(')','').replace(',','').replace('\'','')
     s_path = re_path.rsplit('/',2) #把照片所在的資料夾名和檔名切出來
     print('--------debug--------')
     print(re_path)
@@ -505,10 +505,16 @@ for t in range(int(len(sort))):
     print('--------debug end--------')
     if con[int(s_path[1])] <= (int(len(sort))/class_number) *0.5: #控制每一類數量平均
         con[int(s_path[1])] = con[int(s_path[1])]+1
-        img = cv2.imread (path[sort[t]])
+        img = cv2.imread ('\'' + re_path+'\'')
         cv2.imwrite(img_save_dir+'/'+ s_path[1]+'/'+s_path[2], img)    
 
 #///計算執行時間///
 end_time = time.perf_counter()
 elapsed_time = end_time - start_time
 print("select target quantity data completed time: ", "{:.0f}".format(elapsed_time))
+
+
+
+#代處理
+#計算改玩confidence後的10%的acc和改之前的差異
+#跑100% data並改confidence
