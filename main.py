@@ -506,7 +506,7 @@ for t in range(int(len(sort))):
     print('--------debug end--------')
     if con[int(s_path[1])] <= (int(len(sort))/class_number) *0.5: #控制每一類數量平均
         con[int(s_path[1])] = con[int(s_path[1])]+1
-        img = cv2.imread ('\'' + re_path+'\'')
+        img = cv2.imread (re_path)
         cv2.imwrite(img_save_dir+'/'+ s_path[1]+'/'+s_path[2], img)    
 
 #///計算執行時間///
