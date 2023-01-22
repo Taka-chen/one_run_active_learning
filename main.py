@@ -54,6 +54,7 @@ print("Data preparation completed time: ", "{:.0f}".format(elapsed_time))
 #main_model参數設置
 save_model_path = '../all_file/weight'
 first5_model_name = 'efficientb5_first5.pth'
+os.makedirs(save_model_path,exist_ok=True)
 def parse_opt():
     parser=argparse.ArgumentParser()
     parser.add_argument("--weights",type=str,default="../all_file/model/efficientnet-b5-b6417697.pth",help='initial weights path')#預訓練模型路徑
