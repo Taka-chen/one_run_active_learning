@@ -20,7 +20,6 @@ start_time = time.perf_counter() #程式初始時間
 
 device="cuda" if torch.cuda.is_available() else "cpu" 
 class_number = 10
-
 img_dir = '../all_file/data/cifar10'
 save_dir = '../all_file/data'
 train_val_num = 0.1
@@ -111,7 +110,7 @@ end_time = time.perf_counter()
 elapsed_time = end_time - start_time
 print("10% model training completed time: ", "{:.0f}".format(elapsed_time))
 
-#///產出對second 5 data的confidence///
+#///產出對second 5 data和all data的confidence///
 input_size = 224
 means = [0.485, 0.456, 0.406]
 stds = [0.229, 0.224, 0.225]
@@ -121,6 +120,7 @@ if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     net_name = 'efficientnet-b5'
     data_dir = second5_dir+'_split'
+    all_data_dir = '../all_file/data'
     weight_dir = '../all_file/weight'
     set_list = os.listdir(data_dir)
     pickle_dir = '../all_file/pickle'
@@ -167,17 +167,29 @@ if __name__ == '__main__':
             pickle.dump(path, f)
         #///使用 10% model///
         tensor2, pre_result2, path2 = main_model.test_model(model2 ,data_dir,batch_size,set_name = name)
-        pickle_dir2 = '../all_file/pickle'
-        os.makedirs(pickle_dir2,exist_ok=True)
-        percent10_confidence_pickle_dir = os.path.join(pickle_dir2,'percent10M_secondD_'+name+'_confidence.pickle')
-        percent10_classnum_pickle_dir = os.path.join(pickle_dir2,'percent10M_secondD_'+name+'_classnum.pickle')
-        percent10_path_pickle_dir = os.path.join(pickle_dir2,'percent10M_secondD_'+name+'_path.pickle')
+        percent10_confidence_pickle_dir = os.path.join(pickle_dir,'percent10M_secondD_'+name+'_confidence.pickle')
+        percent10_classnum_pickle_dir = os.path.join(pickle_dir,'percent10M_secondD_'+name+'_classnum.pickle')
+        percent10_path_pickle_dir = os.path.join(pickle_dir,'percent10M_secondD_'+name+'_path.pickle')
         with open(percent10_confidence_pickle_dir , 'wb') as f:
             pickle.dump(tensor2, f)
         with open(percent10_classnum_pickle_dir, 'wb') as f:
             pickle.dump(pre_result2, f)
         with open(percent10_path_pickle_dir, 'wb') as f:
             pickle.dump(path2, f)
+    #///使用 10% model test all data///
+    register = img_dir.rsplit('/',1)
+    all_data_dir = register[0]
+    name = register[1]
+    tensor3, pre_result3, path3 = main_model.test_model(model2 ,all_data_dir,batch_size,set_name = name)
+    alldata_confidence_pickle_dir = os.path.join(pickle_dir,'percent10M_allD_'+name+'_confidence.pickle')
+    alldata_classnum_pickle_dir = os.path.join(pickle_dir,'percent10M_allD_'+name+'_classnum.pickle')
+    alldata_path_pickle_dir = os.path.join(pickle_dir,'percent10M_allD_'+name+'_path.pickle')
+    with open(alldata_confidence_pickle_dir , 'wb') as f:
+        pickle.dump(tensor3, f)
+    with open(alldata_classnum_pickle_dir, 'wb') as f:
+        pickle.dump(pre_result3, f)
+    with open(alldata_path_pickle_dir, 'wb') as f:
+        pickle.dump(path3, f)
 
 #///計算執行時間///
 end_time = time.perf_counter()
@@ -264,7 +276,7 @@ optimizer = torch.optim.SGD(MyResModel.parameters(), lr=0.001, momentum=0.8)
 
 #train min model分類模型
 #參數設定
-Epochs=100
+Epochs=500
 max_test_acc=0.0
 batch_size = 32
 good_model_list = []
@@ -390,11 +402,11 @@ for class_n in range(class_number ):
         a = (epoch+1) / 100
         if count ==0 :
             count = 1
-        if (epoch+1) % 10 ==0:
+        if (epoch+1) % 50 ==0:
             pass
             print('epoch : '+ str(int(a*100)) +' train_loss : '+str(train_loss_count/count)+' train_Acc : '+str(train_acc_count/count))
         #算驗證集loss和acc
-        if (epoch+1) % 100 ==0:
+        if (epoch+1) % Epochs ==0:
             count = 0
             loss_count = 0
             acc_count = 0
@@ -432,55 +444,69 @@ elapsed_time = end_time - start_time
 print("min model training completed time: ", "{:.0f}".format(elapsed_time))
 
 #用min model修改10% model產出的confidence(修改前五大)
-with open(percent10_confidence_pickle_dir, 'rb') as f:  
-    result = pickle.load(f)
-with open( percent10_classnum_pickle_dir, 'rb') as f:
-    label = pickle.load(f)
-min_model_list = os.listdir(save_min_model_dir)
-min_model_file = []
-for t in range(len(min_model_list)):
-    min_model_path = os.path.join(save_min_model_dir,min_model_list[t])
-    min_model_file.append(min_model_path)
-for t in range(len(result)):     
-    value , index = torch.sort(result[t].squeeze(),descending = True)
-    for t2 in range(int(len(index)/20)):
-        MyResModel.load_state_dict(torch.load(min_model_file[int(index[t2])]))
-        MyResModel = MyResModel.to(device)
-        numpy = FUN.softmax(Variable(result[t])).data.cpu().numpy()
-        tensor = torch.tensor(numpy)
-        tensor = tensor.unsqueeze(0)
-        tensor = tensor.to(device)
-        output = MyResModel(tensor)
-        pre_class = torch.argmax(output)
-        #只修改模型效果好的
-        if index[t2] in good_model:
-            if int(pre_class)==0:
-                result[t][0][int(index[t2])] = result[t][0][int(index[t2])] + result[t][0][int(index[t2])]*0.5
-            if int(pre_class)==1:
-                result[t][0][int(index[t2])] = result[t][0][int(index[t2])]
-            if int(pre_class)==2:
-                result[t][0][int(index[t2])] = result[t][0][int(index[t2])] - result[t][0][int(index[t2])]*0.2
-acc_count = 0
-for t in range(len(result)):        
-        r = torch.argmax(result[t])
-        if int(r) == label[t]:
-            acc_count+=1
-print('after min model revise acc : '+str(acc_count/len(result)))
-save_revise_confidenxe_dir = os.path.join(pickle_dir,'revise_confidence')
-os.makedirs(save_revise_confidenxe_dir ,exist_ok=True)
-save_revise_confidenxe_path = os.path.join(save_revise_confidenxe_dir,'revise_confidence.pickle')
-with open(save_revise_confidenxe_path, 'wb') as f:
-    pickle.dump(result, f)   
-
-#///計算執行時間///
-end_time = time.perf_counter()
-elapsed_time = end_time - start_time
-print("min model revise confidence completed time: ", "{:.0f}".format(elapsed_time))
+for round in range(2):
+    if round == 0:
+        with open(percent10_confidence_pickle_dir, 'rb') as f:  
+            result = pickle.load(f)
+        with open( percent10_classnum_pickle_dir, 'rb') as f:
+            label = pickle.load(f)
+    if round == 1:
+        with open(alldata_confidence_pickle_dir, 'rb') as f:  
+            result = pickle.load(f)
+        with open( alldata_classnum_pickle_dir, 'rb') as f:
+            label = pickle.load(f)
+    min_model_list = os.listdir(save_min_model_dir)
+    min_model_file = []
+    for t in range(len(min_model_list)):
+        min_model_path = os.path.join(save_min_model_dir,min_model_list[t])
+        min_model_file.append(min_model_path)
+    for t in range(len(result)):     
+        value , index = torch.sort(result[t].squeeze(),descending = True)
+        for t2 in range(int(len(index)/20)):
+            MyResModel.load_state_dict(torch.load(min_model_file[int(index[t2])]))
+            MyResModel = MyResModel.to(device)
+            numpy = FUN.softmax(Variable(result[t])).data.cpu().numpy()
+            tensor = torch.tensor(numpy)
+            tensor = tensor.unsqueeze(0)
+            tensor = tensor.to(device)
+            output = MyResModel(tensor)
+            pre_class = torch.argmax(output)
+            #只修改模型效果好的
+            if index[t2] in good_model:
+                if int(pre_class)==0:
+                    result[t][0][int(index[t2])] = result[t][0][int(index[t2])] + result[t][0][int(index[t2])]*0.5
+                if int(pre_class)==1:
+                    result[t][0][int(index[t2])] = result[t][0][int(index[t2])]
+                if int(pre_class)==2:
+                    result[t][0][int(index[t2])] = result[t][0][int(index[t2])] - result[t][0][int(index[t2])]*0.2
+    acc_count = 0
+    for t in range(len(result)):        
+            r = torch.argmax(result[t])
+            if int(r) == label[t]:
+                acc_count+=1
+    print('after min model revise acc : '+str(acc_count/len(result)))
+    save_revise_confidenxe_dir = os.path.join(pickle_dir,'revise_confidence')
+    os.makedirs(save_revise_confidenxe_dir ,exist_ok=True)
+    if round ==0:
+        save_revise_10percent_confidenxe_path = os.path.join(save_revise_confidenxe_dir,'revise_10percent_confidence.pickle')
+        with open(save_revise_10percent_confidenxe_path, 'wb') as f:
+            pickle.dump(result, f)   
+    if round ==1:
+        save_revise_alldata_confidenxe_path = os.path.join(save_revise_confidenxe_dir,'revise_alldata_confidence.pickle')
+        with open(save_revise_alldata_confidenxe_path, 'wb') as f:
+            pickle.dump(result, f)   
+    #///計算執行時間///
+    end_time = time.perf_counter()
+    elapsed_time = end_time - start_time
+    if round ==0:
+        print("min model revise 10percent confidence completed time: ", "{:.0f}".format(elapsed_time))
+    if round ==1:
+        print("min model revise alldata confidence completed time: ", "{:.0f}".format(elapsed_time))
 
 #用改完的confidence算enstropy挑 x% data(各類數量平均)
-with open( percent10_path_pickle_dir , 'rb') as f:
+with open(alldata_path_pickle_dir , 'rb') as f:
     path = pickle.load(f)
-with open( save_revise_confidenxe_path , 'rb') as f:
+with open( save_revise_alldata_confidenxe_path , 'rb') as f:
     result = pickle.load(f)
 img_save_dir = '../all_file/selection_data' 
 all_en = []
@@ -499,11 +525,6 @@ con = [0 for t in range(class_number)] #創一個維度等於模型類別數的l
 for t in range(int(len(sort))):
     re_path = str(path [sort[t]]).replace('\\','/').replace('//','/').replace('(','').replace(')','').replace(',','').replace('\'','')
     s_path = re_path.rsplit('/',2) #把照片所在的資料夾名和檔名切出來
-    print('--------debug--------')
-    print(re_path)
-    print(s_path[1])
-    print(s_path[2])
-    print('--------debug end--------')
     if con[int(s_path[1])] <= (int(len(sort))/class_number) *0.5: #控制每一類數量平均
         con[int(s_path[1])] = con[int(s_path[1])]+1
         img = cv2.imread (re_path)
@@ -516,6 +537,6 @@ print("select target quantity data completed time: ", "{:.0f}".format(elapsed_ti
 
 
 
-#代處理
+#待處理
 #計算改玩confidence後的10%的acc和改之前的差異
 #跑100% data並改confidence
