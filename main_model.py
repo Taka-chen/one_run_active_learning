@@ -210,6 +210,7 @@ def test_model(model, data_dir, batch_size,set_name):
     path = []
     model.eval()
     dset_loaders, dset_sizes = loaddata(data_dir=data_dir, batch_size=batch_size, set_name=set_name, shuffle=False, input_size=input_size, means=means, stds=stds)
+
     for data in dset_loaders[set_name]:
         inputs, labels, paths = data #path抓出被分類的圖片的原始路徑
         labels = labels.type(torch.LongTensor)

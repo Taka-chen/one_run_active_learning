@@ -15,12 +15,15 @@ import efficientnet_pytorch
 import pickle
 import function
 import main_model
+import time
 
 start_time = time.perf_counter() #程式初始時間
 
+epoch_count = 30 #訓練批次
+
 device="cuda" if torch.cuda.is_available() else "cpu" 
-class_number = 10
-img_dir = '../all_file/data/cifar10'
+class_number = 100 #分類數量
+img_dir = '../all_file/data2/cifar100'
 save_dir = '../all_file/data'
 train_val_num = 0.1
 if not os.path.isdir(os.path.join(save_dir,'10_percent')) and not os.path.isdir(os.path.join(save_dir,'90_percent')):
@@ -59,7 +62,7 @@ def parse_opt():
     parser.add_argument("--weights",type=str,default="../all_file/model/efficientnet-b5-b6417697.pth",help='initial weights path')#預訓練模型路徑
     parser.add_argument("--img-dir",type=str,default=train_path,help="train image path") #數據集的路徑
     parser.add_argument("--imgsz",type=int,default=224,help="image size") #圖像尺寸
-    parser.add_argument("--epochs",type=int,default=1,help="train epochs")#訓練批次
+    parser.add_argument("--epochs",type=int,default=epoch_count,help="train epochs")#訓練批次
     parser.add_argument("--batch-size",type=int,default=8,help="train batch-size") #batch-size
     parser.add_argument("--class_num",type=int,default=class_number,help="class num") #類別數
     parser.add_argument("--lr",type=float,default=0.0005,help="Init lr") #學習率初始值
@@ -89,7 +92,7 @@ def parse_opt():
     parser.add_argument("--weights" , type=str,default="../all_file/model/efficientnet-b5-b6417697.pth" , help='initial weights path')#預訓練模型路徑
     parser.add_argument("--img-dir",type=str,default=train_path,help="train image path") #數據集的路徑
     parser.add_argument("--imgsz",type=int,default=224,help="image size") #圖像尺寸
-    parser.add_argument("--epochs",type=int,default=1,help="train epochs")#訓練批次
+    parser.add_argument("--epochs",type=int,default=epoch_count,help="train epochs")#訓練批次
     parser.add_argument("--batch-size",type=int,default=8,help="train batch-size") #batch-size
     parser.add_argument("--class_num",type=int,default=class_number,help="class num") #類別數
     parser.add_argument("--lr",type=float,default=0.0005,help="Init lr") #學習率初始值
@@ -305,6 +308,7 @@ for t in range(class_number ):
         val_data_.append(pickle.load(f))
 
 #訓練各類模型
+
 for class_n in range(class_number ):
     print('class '+str(class_n)+' model')
     # 按batch size包裝training set資料
@@ -376,6 +380,9 @@ for class_n in range(class_number ):
 
     acc_register = 0
     #開始訓練模型
+
+    start = time.time() #mini model train start time
+
     for epoch in range(Epochs):
         optimizer1 = function.lrfn(epoch,optimizer)
         train_loss=0.0
@@ -431,6 +438,14 @@ for class_n in range(class_number ):
     #紀錄min model中準確率好的class      
     if acc_register >=0.3:
         good_model_list.append(str(class_n))
+
+    #min model training end time
+    end = time.time()
+    span_time = (end-start)/60
+    print('############################################')
+    print('mini model'+' training span : '+str(span_time))
+    print('############################################')
+
 os.makedirs(os.path.join(pickle_dir,'good_model'),exist_ok=True)
 with open(os.path.join(pickle_dir,'good_model','good_model_list.pickle'), 'wb') as f:
     pickle.dump(good_model_list, f)
@@ -444,6 +459,9 @@ elapsed_time = end_time - start_time
 print("min model training completed time: ", "{:.0f}".format(elapsed_time))
 
 #用min model修改10% model產出的confidence(修改前五大)
+
+start = time.time() #mini model revise start time
+
 for round in range(2):
     if round == 0:
         with open(percent10_confidence_pickle_dir, 'rb') as f:  
@@ -494,7 +512,21 @@ for round in range(2):
     if round ==1:
         save_revise_alldata_confidenxe_path = os.path.join(save_revise_confidenxe_dir,'revise_alldata_confidence.pickle')
         with open(save_revise_alldata_confidenxe_path, 'wb') as f:
-            pickle.dump(result, f)   
+            pickle.dump(result, f)  
+
+    if round ==0:
+        end = time.time()
+        span_time = (end-start)/60
+        print('############################################')
+        print('mini model'+' revise 10percen span : '+str(span_time))
+        print('############################################')
+    if round ==1:
+        end = time.time()
+        span_time = (end-start)/60
+        print('############################################')
+        print('mini model'+' revise alldata span : '+str(span_time))
+        print('############################################')
+
     #///計算執行時間///
     end_time = time.perf_counter()
     elapsed_time = end_time - start_time
