@@ -1,7 +1,3 @@
-
-
-
-
 出版篩出的 50% data訓練出的模型 在100 % imagenette中acc 98.5%
 
 隨機選出的 50% data訓練出的模型 在100 % imagenette中acc 98.5%
@@ -14,6 +10,7 @@ cifar first 5 percent在all data的準確率 75.5%
 
 
 cifar 10 percent在test data的準確率 80%
+cifar 10 percent在test data的準確率 88.7%(用b3)
 
 cifar 10 percent在all data的準確率 82%
 
@@ -81,6 +78,9 @@ FCN準確率  train set 80幾  validation 60幾到70
 第二版(改前三大且資料平均)挑出的50% data(未資料增強) 在all data的準確率 94%
 
 
+最終版 挑出的50% data(未資料增強) 在test data的準確率 92.3%
+
+
 -----------------------CIFAR100---------------------------------------------
 
 以10% datat訓練出的model在test set的acc  55%
@@ -127,3 +127,26 @@ first 5% data訓練出的model在test set的acc  39%
 動態調整每個模型的動量後acc超過70的model   個
 
 動態調整每個模型的leaening rate後acc超過70的model   44個
+
+
+100%data(改用b3) in test set acc 94.5       
+
+90%data(改用b3) in test set acc 91.97       b5 acc 87.77
+
+80%data(改用b3) in test set acc 89.23
+
+65%data(改用b3) in test set acc 	    b5 acc 85.43
+
+63%data(改用b3) in test set acc 	    b5 acc 85.72
+
+60%data(改用b3) in test set acc 	    b5 acc 85.18
+
+70%data(改用b3) in test set acc 88.86	    b5 acc 86.81
+
+50%data(改用b3) in test set acc 88.16	    b5 acc 84.94
+
+40%data(改用b3) in test set acc 85.06	    b5 acc 83.3
+
+30%data(改用b3) in test set acc 82.87       b5 acc 82.6
+
+20%data(改用b3) in test set acc 80.51

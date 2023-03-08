@@ -23,7 +23,7 @@ epoch_count = 30 #訓練批次
 
 device="cuda" if torch.cuda.is_available() else "cpu" 
 class_number = 100 #分類數量
-img_dir = '../all_file/data2/cifar100'
+img_dir = '../all_file/data/cifar100'
 save_dir = '../all_file/data'
 train_val_num = 0.1
 if not os.path.isdir(os.path.join(save_dir,'10_percent')) and not os.path.isdir(os.path.join(save_dir,'90_percent')):
@@ -55,11 +55,11 @@ print("Data preparation completed time: ", "{:.0f}".format(elapsed_time))
 #///train 5% data///
 #main_model参數設置
 save_model_path = '../all_file/weight'
-first5_model_name = 'efficientb5_first5.pth'
+first5_model_name = 'efficientb3_first5.pth'
 os.makedirs(save_model_path,exist_ok=True)
 def parse_opt():
     parser=argparse.ArgumentParser()
-    parser.add_argument("--weights",type=str,default="../all_file/model/efficientnet-b5-b6417697.pth",help='initial weights path')#預訓練模型路徑
+    parser.add_argument("--weights",type=str,default="../all_file/model/efficientnet-b3-cdd7c0f4.pth",help='initial weights path')#預訓練模型路徑
     parser.add_argument("--img-dir",type=str,default=train_path,help="train image path") #數據集的路徑
     parser.add_argument("--imgsz",type=int,default=224,help="image size") #圖像尺寸
     parser.add_argument("--epochs",type=int,default=epoch_count,help="train epochs")#訓練批次
@@ -68,7 +68,7 @@ def parse_opt():
     parser.add_argument("--lr",type=float,default=0.0005,help="Init lr") #學習率初始值
     parser.add_argument("--m",type=float,default=0.9,help="optimer momentum") #動量
     parser.add_argument("--save-dir" , type=str , default=save_model_path , help="save models dir")#保存模型路徑
-    parser.add_argument("--model_name" , type=str , default="efficientnet-b5" , help="model version")#選用的efficientnet版本
+    parser.add_argument("--model_name" , type=str , default="efficientnet-b3" , help="model version")#選用的efficientnet版本
     parser.add_argument("--save-model-name" , type=str , default=first5_model_name , help="save models name")#保存模型檔名
     opt=parser.parse_known_args()[0]
     return opt
@@ -86,10 +86,10 @@ print("5% model training completed time: ", "{:.0f}".format(elapsed_time))
 #///train 10% data///
 #main_model参數設置
 train_path = (percent10_dir+'_split')
-percent10_model_name = 'efficientb5_10percent.pth'
+percent10_model_name = 'efficientb3_10percent.pth'
 def parse_opt():
     parser=argparse.ArgumentParser()
-    parser.add_argument("--weights" , type=str,default="../all_file/model/efficientnet-b5-b6417697.pth" , help='initial weights path')#預訓練模型路徑
+    parser.add_argument("--weights" , type=str,default="../all_file/model/efficientnet-b3-cdd7c0f4.pth" , help='initial weights path')#預訓練模型路徑
     parser.add_argument("--img-dir",type=str,default=train_path,help="train image path") #數據集的路徑
     parser.add_argument("--imgsz",type=int,default=224,help="image size") #圖像尺寸
     parser.add_argument("--epochs",type=int,default=epoch_count,help="train epochs")#訓練批次
@@ -98,7 +98,7 @@ def parse_opt():
     parser.add_argument("--lr",type=float,default=0.0005,help="Init lr") #學習率初始值
     parser.add_argument("--m",type=float,default=0.9,help="optimer momentum") #動量
     parser.add_argument("--save-dir" , type=str , default=save_model_path , help="save models dir")#保存模型路徑
-    parser.add_argument("--model_name" , type=str , default="efficientnet-b5" , help="model version")#選用的efficientnet版本
+    parser.add_argument("--model_name" , type=str , default="efficientnet-b3" , help="model version")#選用的efficientnet版本
     parser.add_argument("--save-model-name" , type=str , default=percent10_model_name , help="save models name")#保存模型檔名
     opt=parser.parse_known_args()[0]
     return opt
@@ -121,7 +121,7 @@ unorm = main_model.UnNormalize(mean = means, std = stds)
 device="cuda" if torch.cuda.is_available() else "cpu" 
 if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    net_name = 'efficientnet-b5'
+    net_name = 'efficientnet-b3'
     data_dir = second5_dir+'_split'
     all_data_dir = '../all_file/data'
     weight_dir = '../all_file/weight'
@@ -279,7 +279,7 @@ optimizer = torch.optim.SGD(MyResModel.parameters(), lr=0.001, momentum=0.8)
 
 #train min model分類模型
 #參數設定
-Epochs=500
+Epochs=250
 max_test_acc=0.0
 batch_size = 32
 good_model_list = []
@@ -478,6 +478,12 @@ for round in range(2):
     for t in range(len(min_model_list)):
         min_model_path = os.path.join(save_min_model_dir,min_model_list[t])
         min_model_file.append(min_model_path)
+    #算修改前的acc
+    for t in range(len(result)):        
+            r = torch.argmax(result[t])
+            if int(r) == label[t]:
+                acc_count+=1
+    print('befor min model revise acc : '+str(acc_count/len(result)))
     for t in range(len(result)):     
         value , index = torch.sort(result[t].squeeze(),descending = True)
         for t2 in range(int(len(index)/20)):
@@ -498,6 +504,7 @@ for round in range(2):
                 if int(pre_class)==2:
                     result[t][0][int(index[t2])] = result[t][0][int(index[t2])] - result[t][0][int(index[t2])]*0.2
     acc_count = 0
+    #算修改完後的acc
     for t in range(len(result)):        
             r = torch.argmax(result[t])
             if int(r) == label[t]:
